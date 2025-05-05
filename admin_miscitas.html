@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mis Citas - Panel de Administración</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <script>
+        // Auth check in head
+        try {
+            const storedUserData = localStorage.getItem('userData');
+            if (!storedUserData) {
+                console.log("Auth Check (Head): No user data found. Redirecting...");
+                window.location.replace('login.html');
+                throw new Error("Redirecting");
+            } else {
+                const user = JSON.parse(storedUserData);
+                // CORRECCIÓN: Asegurarse que el ID del usuario también exista
+                if (!user || !user.username || !user.id) {
+                     console.error("Auth Check (Head): Invalid user data in storage (missing id or username).");
+                     localStorage.removeItem('userData'); // Limpiar datos inválidos
+                     window.location.replace('login.html');
+                     throw new Error("Invalid user data.");
+                 }
+                console.log("Auth Check (Head): User data found. Body script will handle display.");
+            }
+        } catch (e) {
+             if (e.message !== "Redirecting" && e.message !== "Invalid user data.") {
+                 console.error("Auth Check Error (Head), redirecting:", e);
+                 localStorage.removeItem('userData');
+                 if (!window.location.pathname.endsWith('login.html')) {
+                     window.location.replace('login.html');
+                 }
+             }
+        }
+    </script>
+    <style>
+        /* Styles */
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .active-link { background-color: #e0f2fe; color: #0c4a6e; font-weight: 600; }
+        .sidebar-link:hover { background-color: #f0f9ff; color: #0c4a6e; }
+        .main-container { min-height: 100vh; display: flex; }
+        .main-content-area { flex-grow: 1; display: flex; flex-direction: column; margin-left: 16rem; width: calc(100% - 16rem); }
+        .header { height: 4rem; background-color: white; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); display: flex; align-items: center; justify-content: flex-end; padding: 0 1.5rem; flex-shrink: 0; position: sticky; top: 0; z-index: 10; }
+        .page-content { padding: 1.5rem; flex-grow: 1; overflow-y: auto; }
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); padding: 1.5rem; }
+        .table th, .table td { padding: 0.75rem 1rem; text-align: left; vertical-align: middle; border-bottom: 1px solid #e5e7eb; font-size: 0.8rem; /* Ajuste tamaño fuente tabla */ }
+        .table th { background-color: #f9fafb; color: #6b7280; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom-width: 2px; white-space: nowrap; }
+        .table tbody tr:last-child td { border-bottom: none; }
+        .table tbody tr:nth-child(even) { background-color: #f9fafb; }
+        .action-button { padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 0.25rem; margin-left: 0.5rem; cursor: pointer; border: none; transition: background-color 0.2s ease; }
+        .btn-view { background-color: #3b82f6; color: white; } .btn-view:hover { background-color: #2563eb; }
+        .btn-edit { background-color: #f59e0b; color: white; } .btn-edit:hover { background-color: #d97706; }
+        .btn-complete { background-color: #10b981; color: white; } .btn-complete:hover { background-color: #059669; }
+        .btn-cancel { background-color: #ef4444; color: white; } .btn-cancel:hover { background-color: #dc2626; }
+        .status-badge { padding: 0.25rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; text-transform: capitalize; display: inline-block; }
+        .status-Pendiente { background-color: #fef3c7; color: #92400e; }
+        .status-Confirmada { background-color: #dbeafe; color: #1e40af; } /* Mantener por si acaso */
+        .status-Cancelada { background-color: #fee2e2; color: #991b1b; }
+        .status-Completada { background-color: #dcfce7; color: #166534; } /* Verde para Completada */
+        .status-No-Asistió { background-color: #e5e7eb; color: #4b5563; }
+        .sidebar { width: 16rem; background-color: #ffffff; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; flex-shrink: 0; height: 100vh; position: fixed; top: 0; left: 0; z-index: 20; }
+        .sidebar-header { height: 4rem; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #e5e7eb; padding: 0 1rem; flex-shrink: 0; }
+        .sidebar-nav { flex-grow: 1; margin-top: 1.5rem; padding: 0 1rem; space-y: 0.5rem; overflow-y: auto; }
+        .sidebar-link { display: flex; align-items: center; padding: 0.625rem 1rem; font-size: 0.875rem; border-radius: 0.375rem; color: #374151; text-decoration: none; }
+        .sidebar-link i { width: 1.25rem; height: 1.25rem; margin-right: 0.75rem; color: #6b7280; }
+        .active-link i { color: #0c4a6e; }
+        .sidebar-footer { padding: 1rem; margin-top: auto; border-top: 1px solid #e5e7eb; flex-shrink: 0; }
+        .user-info { text-align: center; padding: 1rem 1rem 0; flex-shrink: 0; }
+        .user-name { font-weight: 600; color: #1f2937; }
+        .user-role { font-size: 0.75rem; color: #6b7280; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #e5e7eb; }
+        .btn { padding: 0.6rem 1.2rem; border-radius: 0.375rem; font-weight: 600; text-align: center; cursor: pointer; transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, opacity 0.2s ease-in-out; border: 1px solid transparent; font-size: 0.875rem; }
+        .btn-primary { background-color: #2563eb; color: white; }
+        .btn-primary:hover:not(:disabled) { background-color: #1d4ed8; }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .filter-container { background-color: white; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1); }
+        .filter-container label { margin-bottom: 0.25rem; font-size: 0.75rem; color: #4b5563; display: block;}
+        .filter-container input[type="date"] { padding: 0.4rem 0.5rem; font-size: 0.875rem; border: 1px solid #d1d5db; border-radius: 0.375rem; width: 100%; }
+        .filter-container button { padding: 0.4rem 1rem; }
+        .feedback-message { font-size: 0.875rem; padding: 0.75rem 1rem; border-radius: 0.375rem; margin-top: 1rem; margin-bottom: 1rem; text-align: center; display: none; }
+        .feedback-success { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
+        .feedback-error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        .feedback-loading { background-color: #e0f2fe; color: #075985; border: 1px solid #7dd3fc; }
+        body.auth-pending .main-container { visibility: hidden; opacity: 0; }
+        body:not(.auth-pending) .main-container { visibility: visible; opacity: 1; transition: opacity 0.3s ease-in-out; }
+        /* Estilos para inputs y labels dentro del modal de edición */
+        #cita-edit-modal label { display: block; margin-bottom: 0.25rem; font-size: 0.875rem; font-weight: 500; color: #374151; }
+        #cita-edit-modal input[type="text"],
+        #cita-edit-modal input[type="email"],
+        #cita-edit-modal input[type="tel"],
+        #cita-edit-modal input[type="number"],
+        #cita-edit-modal input[type="date"],
+        #cita-edit-modal input[type="time"],
+        #cita-edit-modal select,
+        #cita-edit-modal textarea { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; box-shadow: inset 0 1px 2px 0 rgb(0 0 0 / 0.05); font-size: 0.875rem; transition: border-color 0.2s ease-in-out; }
+        #cita-edit-modal input:focus,
+        #cita-edit-modal select:focus,
+        #cita-edit-modal textarea:focus { outline: 2px solid transparent; outline-offset: 2px; border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }
+         #cita-edit-modal input:disabled,
+         #cita-edit-modal select:disabled,
+         #cita-edit-modal textarea:disabled { background-color: #f3f4f6; cursor: not-allowed; opacity: 0.7; }
+         .modal-section { margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #e5e7eb; }
+         .modal-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+         .audit-info { font-size: 0.75rem; color: #6b7280; } /* Estilo para info de auditoría */
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="auth-pending">
+    <div class="main-container">
+        <aside class="sidebar">
+            <div class="sidebar-header"> <img src="https://placehold.co/150x40/003366/FFFFFF?text=A%26S+Palermo" alt="Logo A&S Palermo SAC" class="h-8"> </div>
+            <div class="user-info px-4 pt-4"> <p id="user-name-display">...</p> <p id="user-role-display" class="user-role">...</p> </div>
+            <nav class="sidebar-nav">
+                <a href="admin_vehiculos.html" class="sidebar-link"> <i class="fas fa-car"></i> Vehículos </a>
+                <a href="admin_servicios.html" class="sidebar-link"> <i class="fas fa-wrench"></i> Servicios </a>
+                <a href="admin_miscitas.html" class="sidebar-link active-link"> <i class="fas fa-calendar-check"></i> Mis Citas </a>
+                <a href="admin.html" class="sidebar-link"> <i class="fas fa-plus-circle"></i> Nuevo Servicio </a>
+            </nav>
+            <div class="sidebar-footer"> <p class="text-xs text-gray-400 text-center">Panel de Administración v1.0</p> </div>
+        </aside>
+
+        <div class="main-content-area">
+             <header class="header">
+                 <div class="flex items-center space-x-4"> <button class="flex items-center text-sm text-gray-600 hover:text-gray-800"> <i class="fas fa-user-circle mr-1"></i> <span id="profile-name-display">...</span> <i class="fas fa-chevron-down ml-1 text-xs"></i> </button> <span class="text-gray-300">|</span> <button id="logout-button" class="text-sm text-gray-600 hover:text-red-700"> <i class="fas fa-sign-out-alt mr-1"></i> Cerrar Sesión </button> </div>
+             </header>
+
+            <main class="page-content">
+                <div id="seccion-mis-citas">
+                    <div class="flex justify-between items-center mb-6">
+                        <h1 class="text-2xl font-semibold text-gray-800">Mis Citas</h1>
+                        <a href="admin.html" id="btn-ir-nuevo-servicio" class="btn btn-primary no-underline">
+                            <i class="fas fa-plus mr-2"></i> Agendar Nueva Cita
+                        </a>
+                    </div>
+                    <div class="filter-container flex flex-wrap items-end gap-4">
+                        <div> <label for="filtro-fecha-inicio">Desde:</label> <input type="date" id="filtro-fecha-inicio" name="fecha_inicio"> </div>
+                        <div> <label for="filtro-fecha-fin">Hasta:</label> <input type="date" id="filtro-fecha-fin" name="fecha_fin"> </div>
+                        <button id="btn-filtrar-citas" class="btn btn-primary text-sm"> <i class="fas fa-filter mr-1"></i> Filtrar </button>
+                        <button id="btn-limpiar-filtros" class="btn bg-gray-300 hover:bg-gray-400 text-gray-700 text-sm"> <i class="fas fa-times mr-1"></i> Limpiar </button>
+                    </div>
+                    <div id="action-feedback-message" class="mt-4"></div>
+
+                    <div class="card bg-white rounded-xl shadow-md p-6 mt-6 mb-6">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-4">Próximas Citas (Pendientes)</h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 table">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col">Fecha/Hora</th>
+                                        <th scope="col">Cliente</th>
+                                        <th scope="col">Vehículo (Placa)</th>
+                                        <th scope="col">Motivo/Servicio</th>
+                                        <th scope="col">Estado</th>
+                                        <th scope="col">Creado</th> <th scope="col">Modificado</th> <th scope="col" class="text-right">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-citas-proximas-body" class="bg-white divide-y divide-gray-200 text-sm text-gray-700">
+                                    <tr><td colspan="8" class="py-4 px-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i> Cargando citas...</td></tr> </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card bg-white rounded-xl shadow-md p-6 mb-6">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-4">Historial de Citas (Pasadas / Finalizadas)</h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 table">
+                                 <thead class="bg-gray-50">
+                                     <tr>
+                                         <th scope="col">Fecha/Hora</th>
+                                         <th scope="col">Cliente</th>
+                                         <th scope="col">Vehículo (Placa)</th>
+                                         <th scope="col">Motivo/Servicio</th>
+                                         <th scope="col">Estado</th>
+                                         <th scope="col">Creado</th> <th scope="col">Modificado</th> <th scope="col" class="text-right">Acciones</th>
+                                     </tr>
+                                 </thead>
+                                <tbody id="tabla-citas-pasadas-body" class="bg-white divide-y divide-gray-200 text-sm text-gray-700">
+                                    <tr><td colspan="8" class="py-4 px-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i> Cargando citas...</td></tr> </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <div id="modal-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden" aria-hidden="true"></div>
+    <div id="cita-details-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full overflow-hidden transform transition-all">
+            <div class="bg-gray-100 px-4 py-3 sm:px-6 flex justify-between items-center border-b border-gray-200">
+                <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">Detalles de la Cita</h3>
+                <button type="button" id="modal-close-button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center" aria-label="Cerrar modal">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                </button>
+            </div>
+            <div class="px-4 py-5 sm:p-6 space-y-4 text-sm text-gray-700">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4 border-b border-gray-200">
+                    <div><strong class="block font-medium text-gray-900">Cliente:</strong><span id="modal-cliente-nombre">--</span></div>
+                    <div><strong class="block font-medium text-gray-900">Teléfono Cliente:</strong><span id="modal-cliente-telefono">--</span></div>
+                    <div><strong class="block font-medium text-gray-900">Email Cliente:</strong><span id="modal-cliente-email">--</span></div>
+                    <div><strong class="block font-medium text-gray-900">Fecha y Hora:</strong><span id="modal-fecha-hora">--</span></div>
+                    <div><strong class="block font-medium text-gray-900">Vehículo:</strong><span id="modal-vehiculo-info">--</span></div>
+                    <div><strong class="block font-medium text-gray-900">Placa:</strong><span id="modal-vehiculo-placa">--</span></div>
+                    <div><strong class="block font-medium text-gray-900">Kilometraje:</strong><span id="modal-kilometraje">--</span> Km</div>
+                    <div><strong class="block font-medium text-gray-900">Estado:</strong><span id="modal-estado" class="status-badge">--</span></div>
+                    <div class="col-span-1 md:col-span-2"><strong class="block font-medium text-gray-900">Servicio Principal:</strong><span id="modal-servicio-principal">--</span></div>
+                    <div class="col-span-1 md:col-span-2"><strong class="block font-medium text-gray-900">Motivo / Síntomas / Detalle Adicional:</strong><p id="modal-motivo-detalle" class="mt-1 whitespace-pre-wrap break-words">--</p></div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 audit-info">
+                     <div><strong class="block font-medium text-gray-600">Creado por:</strong><span id="modal-creado-por">--</span></div>
+                     <div><strong class="block font-medium text-gray-600">Fecha Creación:</strong><span id="modal-fecha-creacion">--</span></div>
+                     <div><strong class="block font-medium text-gray-600">Últ. Modif. por:</strong><span id="modal-modificado-por">--</span></div>
+                     <div><strong class="block font-medium text-gray-600">Fecha Últ. Modif.:</strong><span id="modal-fecha-modificacion">--</span></div>
+                </div>
+            </div>
+             <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-gray-200">
+                 <button type="button" id="modal-close-button-footer" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Cerrar</button>
+             </div>
+        </div>
+    </div>
+    <div id="modal-edit-overlay" class="fixed inset-0 bg-black bg-opacity-60 z-40 hidden" aria-hidden="true"></div>
+    <div id="cita-edit-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden" aria-labelledby="modal-edit-title" role="dialog" aria-modal="true">
+        <form id="edit-cita-form" class="bg-white rounded-lg shadow-xl max-w-3xl w-full overflow-hidden transform transition-all">
+            <div class="bg-gray-100 px-4 py-3 sm:px-6 flex justify-between items-center border-b border-gray-200">
+                <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-edit-title">Editar Cita</h3>
+                <button type="button" id="modal-edit-close-button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center" aria-label="Cerrar modal">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                </button>
+            </div>
+            <div class="px-4 py-5 sm:p-6 space-y-4 text-sm text-gray-700 max-h-[70vh] overflow-y-auto">
+                 <div id="edit-feedback-message" class="mb-4"></div>
+                 <input type="hidden" id="edit-cita-id" name="id_cita">
+                 <div class="modal-section">
+                    <h4 class="font-medium text-gray-800 mb-2">Información Cliente y Vehículo</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 text-xs bg-gray-50 p-3 rounded">
+                        <div><strong class="text-gray-600">Cliente:</strong> <span id="edit-cliente-info">--</span></div>
+                        <div><strong class="text-gray-600">Teléfono:</strong> <span id="edit-telefono-info">--</span></div>
+                        <div><strong class="text-gray-600">Vehículo:</strong> <span id="edit-vehiculo-info">--</span></div>
+                        <div><strong class="text-gray-600">Placa:</strong> <span id="edit-placa-info">--</span></div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Nota: Para cambiar cliente o vehículo, cancele esta cita y cree una nueva.</p>
+                 </div>
+                 <div class="modal-section grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div>
+                         <label for="edit-fecha-cita">Fecha de la Cita</label>
+                         <input type="date" id="edit-fecha-cita" name="fecha_cita" required>
+                     </div>
+                     <div>
+                         <label for="edit-hora-cita">Hora de la Cita</label>
+                         <input type="time" id="edit-hora-cita" name="hora_cita" required>
+                     </div>
+                     <div>
+                         <label for="edit-kilometraje">Kilometraje</label>
+                         <input type="number" id="edit-kilometraje" name="kilometraje" placeholder="Ej: 15500" min="0">
+                     </div>
+                      <div>
+                         <label for="edit-select-servicio">Servicio Principal</label>
+                         <select id="edit-select-servicio" name="servicio_id" required>
+                             <option value="" disabled>-- Seleccionar --</option>
+                         </select>
+                     </div>
+                     <div class="col-span-1 md:col-span-2">
+                         <label for="edit-detalle-sintomas">Motivo / Síntomas / Detalle Adicional</label>
+                         <textarea id="edit-detalle-sintomas" name="detalle_sintomas" rows="3" placeholder="Describe el problema..."></textarea>
+                     </div>
+                 </div>
+            </div>
+             <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-gray-200">
+                 <button type="submit" id="modal-edit-save-button" class="btn btn-primary w-full sm:w-auto sm:ml-3">
+                     <i class="fas fa-save mr-2"></i> Guardar Cambios
+                 </button>
+                 <button type="button" id="modal-edit-cancel-button" class="btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 mt-3 sm:mt-0 w-full sm:w-auto">
+                     Cancelar
+                 </button>
+             </div>
+        </form>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let localCurrentUser = null;
+            let isAuthenticatedOnLoad = false;
+
+            // --- Auth Check ---
+            try {
+                const storedUserData = localStorage.getItem('userData');
+                if (storedUserData) {
+                    localCurrentUser = JSON.parse(storedUserData);
+                    if (!localCurrentUser || !localCurrentUser.username || !localCurrentUser.id) {
+                         console.error("Auth Check (Head): Invalid user data format (missing id or username).");
+                         localStorage.removeItem('userData');
+                         throw new Error("Invalid user data.");
+                    }
+                    isAuthenticatedOnLoad = true;
+                } else { throw new Error("No user data found."); }
+            } catch (error) {
+                console.error("Auth Error on Load:", error.message);
+                localStorage.removeItem('userData');
+                if (!window.location.pathname.endsWith('login.html')) { window.location.replace('login.html'); }
+                return;
+            }
+
+            // --- Run only if authenticated ---
+            if (isAuthenticatedOnLoad) {
+                document.body.classList.remove('auth-pending');
+                console.log("Auth valid, initializing page for user:", localCurrentUser.username, "(ID:", localCurrentUser.id, ")");
+
+                // --- Update UI User ---
+                const userNameDisplay = document.getElementById('user-name-display');
+                const userRoleDisplay = document.getElementById('user-role-display');
+                const profileNameDisplay = document.getElementById('profile-name-display');
+                if (userNameDisplay) userNameDisplay.textContent = localCurrentUser.nombre || localCurrentUser.username;
+                if (userRoleDisplay) userRoleDisplay.textContent = localCurrentUser.rol || 'Usuario';
+                if (profileNameDisplay) profileNameDisplay.textContent = localCurrentUser.nombre || localCurrentUser.username;
+
+                // --- DOM Elements ---
+                const tablaCitasProximasBody = document.getElementById('tabla-citas-proximas-body');
+                const tablaCitasPasadasBody = document.getElementById('tabla-citas-pasadas-body');
+                const logoutButton = document.getElementById('logout-button');
+                const filtroFechaInicio = document.getElementById('filtro-fecha-inicio');
+                const filtroFechaFin = document.getElementById('filtro-fecha-fin');
+                const btnFiltrar = document.getElementById('btn-filtrar-citas');
+                const btnLimpiar = document.getElementById('btn-limpiar-filtros');
+                const actionFeedbackMessageDiv = document.getElementById('action-feedback-message');
+
+                // Modal Detalles Elements
+                const modalOverlay = document.getElementById('modal-overlay');
+                const citaDetailsModal = document.getElementById('cita-details-modal');
+                const modalCloseButton = document.getElementById('modal-close-button');
+                const modalCloseButtonFooter = document.getElementById('modal-close-button-footer');
+                const modalClienteNombre = document.getElementById('modal-cliente-nombre');
+                const modalClienteTelefono = document.getElementById('modal-cliente-telefono');
+                const modalClienteEmail = document.getElementById('modal-cliente-email');
+                const modalFechaHora = document.getElementById('modal-fecha-hora');
+                const modalVehiculoInfo = document.getElementById('modal-vehiculo-info');
+                const modalVehiculoPlaca = document.getElementById('modal-vehiculo-placa');
+                const modalKilometraje = document.getElementById('modal-kilometraje');
+                const modalEstado = document.getElementById('modal-estado');
+                const modalServicioPrincipal = document.getElementById('modal-servicio-principal');
+                const modalMotivoDetalle = document.getElementById('modal-motivo-detalle');
+                const modalCreadoPor = document.getElementById('modal-creado-por');
+                const modalFechaCreacion = document.getElementById('modal-fecha-creacion');
+                const modalModificadoPor = document.getElementById('modal-modificado-por');
+                const modalFechaModificacion = document.getElementById('modal-fecha-modificacion');
+
+
+                // Modal Edición Elements
+                const modalEditOverlay = document.getElementById('modal-edit-overlay');
+                const citaEditModal = document.getElementById('cita-edit-modal');
+                const editCitaForm = document.getElementById('edit-cita-form');
+                const modalEditCloseButton = document.getElementById('modal-edit-close-button');
+                const modalEditCancelButton = document.getElementById('modal-edit-cancel-button');
+                const modalEditSaveButton = document.getElementById('modal-edit-save-button');
+                const editFeedbackMessageDiv = document.getElementById('edit-feedback-message');
+                const editCitaIdInput = document.getElementById('edit-cita-id');
+                const editClienteInfo = document.getElementById('edit-cliente-info');
+                const editTelefonoInfo = document.getElementById('edit-telefono-info');
+                const editVehiculoInfo = document.getElementById('edit-vehiculo-info');
+                const editPlacaInfo = document.getElementById('edit-placa-info');
+                const editFechaCitaInput = document.getElementById('edit-fecha-cita');
+                const editHoraCitaInput = document.getElementById('edit-hora-cita');
+                const editKilometrajeInput = document.getElementById('edit-kilometraje');
+                const editSelectServicio = document.getElementById('edit-select-servicio');
+                const editDetalleSintomasTextarea = document.getElementById('edit-detalle-sintomas');
+
+                // --- Global Variables ---
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                let serviciosCache = {};
+                let todasLasCitas = [];
+
+                 // --- Helper: Formatear Fecha y Hora ---
+                 function formatDateTime(dateTimeString) {
+                     if (!dateTimeString) return 'N/A';
+                     try {
+                         const date = new Date(dateTimeString);
+                         if (isNaN(date)) return 'Fecha inválida';
+                         // Formato: dd/mes/año hh:mm AM/PM
+                         return date.toLocaleString('es-PE', {
+                             day: '2-digit', month: 'short', year: 'numeric',
+                             hour: '2-digit', minute: '2-digit', hour12: true
+                         });
+                     } catch (e) {
+                         console.error("Error formateando fecha:", dateTimeString, e);
+                         return 'Fecha inválida';
+                     }
+                 }
+                  // --- Helper: Formatear Solo Fecha ---
+                  function formatDate(dateString) {
+                     if (!dateString) return 'N/A';
+                      try {
+                          const date = new Date(dateString.split('T')[0] + 'T00:00:00Z'); // Asegurar UTC para evitar desfase
+                          if (isNaN(date)) return 'Fecha inválida';
+                          return date.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
+                      } catch (e) {
+                          console.error("Error formateando fecha:", dateString, e);
+                          return 'Fecha inválida';
+                      }
+                  }
+                  // --- Helper: Formatear Solo Hora ---
+                  function formatTime(timeString) {
+                      if (!timeString) return ''; // Devolver vacío si no hay hora
+                      try {
+                          // Crear un objeto Date ficticio solo para usar toLocaleTimeString
+                          const timeParts = timeString.split(':');
+                          if (timeParts.length >= 2) {
+                              const tempDate = new Date();
+                              tempDate.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]), 0, 0);
+                              if (!isNaN(tempDate)) {
+                                  return tempDate.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: true });
+                              }
+                          }
+                          return 'Hora inválida';
+                      } catch (e) {
+                          console.error("Error formateando hora:", timeString, e);
+                          return 'Hora inválida';
+                      }
+                  }
+
+                // --- Feedback Functions ---
+                function showActionFeedback(message, type = 'info') {
+                    let bgColor, iconClass;
+                    const feedbackDiv = actionFeedbackMessageDiv;
+                    if (!feedbackDiv) return;
+                    switch (type) {
+                        case 'success': bgColor = 'feedback-success'; iconClass = 'fas fa-check-circle'; break;
+                        case 'error': bgColor = 'feedback-error'; iconClass = 'fas fa-exclamation-triangle'; break;
+                        case 'loading': bgColor = 'feedback-loading'; iconClass = 'fas fa-spinner fa-spin'; break;
+                        default: bgColor = 'bg-gray-100 border border-gray-300 text-gray-800'; iconClass = 'fas fa-info-circle'; break;
+                    }
+                    feedbackDiv.className = `feedback-message ${bgColor} flex items-center justify-center`;
+                    feedbackDiv.innerHTML = `<i class="${iconClass} mr-2"></i> ${message}`;
+                    feedbackDiv.style.display = 'block';
+                    if (type !== 'loading') {
+                        setTimeout(() => { if(feedbackDiv) feedbackDiv.style.display = 'none'; feedbackDiv.innerHTML = ''; }, 4000);
+                    }
+                }
+                function showEditFeedback(message, type = 'info') {
+                     let bgColor, iconClass;
+                     const feedbackDiv = editFeedbackMessageDiv;
+                     if (!feedbackDiv) return;
+                     switch (type) {
+                         case 'success': bgColor = 'bg-green-100 border border-green-400 text-green-700'; iconClass = 'fas fa-check-circle'; break;
+                         case 'error': bgColor = 'bg-red-100 border border-red-400 text-red-700'; iconClass = 'fas fa-exclamation-triangle'; break;
+                         case 'loading': bgColor = 'bg-blue-100 border border-blue-400 text-blue-700'; iconClass = 'fas fa-spinner fa-spin'; break;
+                         default: bgColor = 'bg-gray-100 border border-gray-400 text-gray-700'; iconClass = 'fas fa-info-circle'; break;
+                     }
+                     feedbackDiv.className = `px-4 py-3 rounded relative text-sm ${bgColor}`;
+                     feedbackDiv.innerHTML = `<span class="inline-block align-middle mr-2"><i class="${iconClass}"></i></span><span class="inline-block align-middle">${message}</span>`;
+                     feedbackDiv.style.display = 'block';
+                     if (type !== 'loading') {
+                         setTimeout(() => { if(feedbackDiv) feedbackDiv.style.display = 'none'; feedbackDiv.innerHTML = ''; }, 4000);
+                     }
+                 }
+
+                // --- Load Services Cache ---
+                async function cargarServicios() {
+                    if (Object.keys(serviciosCache).length > 0) return;
+                    console.log("Fetching services...");
+                    try {
+                        const response = await fetch('http://localhost:3000/api/servicios');
+                        const data = await response.json();
+                        if (response.ok && data.success && data.servicios) {
+                            serviciosCache = data.servicios.reduce((acc, servicio) => {
+                                acc[servicio.id_servicio] = servicio.nombre_servicio;
+                                return acc;
+                            }, {});
+                            console.log("Servicios cargados en caché:", JSON.stringify(serviciosCache));
+                            populateEditServiceSelect(); // Populate edit modal select
+                        } else {
+                            console.error("Error loading services from API:", data.message);
+                            serviciosCache = {};
+                        }
+                    } catch (error) {
+                        console.error("Network error loading services:", error);
+                        serviciosCache = {};
+                    }
+                }
+
+                // --- Get Service Name from Cache ---
+                function getNombreServicio(servicioPrincipal) {
+                    if (!servicioPrincipal) return 'N/A';
+                    let servicioId = null;
+                    let nombreServicio = String(servicioPrincipal);
+                    const match = String(servicioPrincipal).match(/^Servicio ID:\s*(\d+)$/);
+                    if (match && match[1]) {
+                        servicioId = parseInt(match[1], 10);
+                    } else {
+                        const potentialId = parseInt(servicioPrincipal, 10);
+                        if (!isNaN(potentialId)) {
+                            servicioId = potentialId;
+                        }
+                    }
+                    if (servicioId !== null && serviciosCache[servicioId]) {
+                        nombreServicio = serviciosCache[servicioId];
+                    }
+                    return nombreServicio;
+                }
+
+                // --- Populate Edit Service Select ---
+                function populateEditServiceSelect() {
+                     if (!editSelectServicio) return;
+                     const currentValue = editSelectServicio.value;
+                     editSelectServicio.innerHTML = '';
+                     const defaultOption = document.createElement('option');
+                     defaultOption.value = "";
+                     defaultOption.textContent = "-- Seleccionar --";
+                     defaultOption.disabled = true;
+                     editSelectServicio.appendChild(defaultOption);
+                     for (const id in serviciosCache) {
+                         const option = document.createElement('option');
+                         option.value = id;
+                         option.textContent = serviciosCache[id];
+                         editSelectServicio.appendChild(option);
+                     }
+                     const otrosOption = document.createElement('option');
+                     otrosOption.value = "otros";
+                     otrosOption.textContent = "Otros servicios / Diagnóstico";
+                     editSelectServicio.appendChild(otrosOption);
+                     if (editSelectServicio.querySelector(`option[value="${currentValue}"]`)) {
+                         editSelectServicio.value = currentValue;
+                     } else {
+                         editSelectServicio.value = "";
+                     }
+                 }
+
+                // --- Load and Display Appointments (MODIFICADO para mostrar auditoría) ---
+                async function cargarYMostrarCitas(fechaInicio = '', fechaFin = '') {
+                    await cargarServicios();
+
+                    if (!tablaCitasProximasBody || !tablaCitasPasadasBody) return;
+                    const loadingHtml = '<tr><td colspan="8" class="py-4 px-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i> Cargando citas...</td></tr>'; // Colspan a 8
+                    tablaCitasProximasBody.innerHTML = loadingHtml;
+                    tablaCitasPasadasBody.innerHTML = loadingHtml;
+                    todasLasCitas = [];
+
+                    let apiUrl = 'http://localhost:3000/api/citas';
+                    const params = new URLSearchParams();
+                    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+                    if (fechaFin) params.append('fecha_fin', fechaFin);
+                    const queryString = params.toString();
+                    if (queryString) apiUrl += `?${queryString}`;
+
+                    try {
+                        const response = await fetch(apiUrl);
+                        const data = await response.json();
+                        tablaCitasProximasBody.innerHTML = '';
+                        tablaCitasPasadasBody.innerHTML = '';
+
+                        if (response.ok && data.success && data.citas) {
+                            todasLasCitas = data.citas;
+
+                            if (data.citas.length === 0) {
+                                const noCitasMsg = '<tr><td colspan="8" class="py-4 px-4 text-center text-gray-500">No hay citas con los filtros aplicados.</td></tr>'; // Colspan a 8
+                                tablaCitasProximasBody.innerHTML = noCitasMsg;
+                                tablaCitasPasadasBody.innerHTML = noCitasMsg;
+                            } else {
+                                let hayProximas = false;
+                                let hayPasadas = false;
+                                data.citas.forEach(cita => {
+                                    const tr = document.createElement('tr');
+                                    let fechaCitaDate = null;
+                                    let fechaFormateada = 'Fecha inválida';
+                                    let horaFormateada = ''; // Vacío si no hay hora
+
+                                    // Parseo de fecha robusto
+                                    if (cita.fecha_cita) {
+                                        try {
+                                            const fechaISO = cita.fecha_cita.split('T')[0];
+                                            const fechaParts = fechaISO.split('-');
+                                            if (fechaParts.length === 3) {
+                                                fechaCitaDate = new Date(Date.UTC(parseInt(fechaParts[0]), parseInt(fechaParts[1]) - 1, parseInt(fechaParts[2])));
+                                                if (!isNaN(fechaCitaDate)) {
+                                                    fechaFormateada = formatDate(fechaISO);
+                                                    horaFormateada = formatTime(cita.hora_cita);
+                                                } else { fechaCitaDate = null; }
+                                            } else { fechaCitaDate = null; }
+                                        } catch (e) { fechaCitaDate = null; }
+                                    }
+
+                                    const nombreClienteCompleto = `${cita.nombre_cliente || ''} ${cita.apellido_cliente || ''}`.trim();
+                                    const nombreServicioMostrado = getNombreServicio(cita.servicio_principal);
+                                    const estadoCita = cita.estado || 'Pendiente';
+                                    const esModificable = estadoCita === 'Pendiente';
+
+                                    // Formateo fechas auditoría
+                                    const fechaCreacionFmt = formatDateTime(cita.fecha_creacion);
+                                    const fechaModifFmt = formatDateTime(cita.fecha_modificacion);
+
+                                    let botonesAccion = `<button class="action-button btn-view" title="Ver Detalles" data-id="${cita.id_cita}"><i class="fas fa-eye"></i></button>`;
+                                    if (esModificable) {
+                                        botonesAccion += `<button class="action-button btn-edit" title="Editar Cita" data-id="${cita.id_cita}"><i class="fas fa-pencil-alt"></i></button>`;
+                                        botonesAccion += `<button class="action-button btn-complete" title="Marcar como Completada" data-id="${cita.id_cita}" data-cliente-nombre="${nombreClienteCompleto}"><i class="fas fa-check-circle"></i></button>`;
+                                        botonesAccion += `<button class="action-button btn-cancel" title="Cancelar Cita" data-id="${cita.id_cita}" data-cliente-nombre="${nombreClienteCompleto}"><i class="fas fa-times-circle"></i></button>`;
+                                    }
+
+                                    tr.innerHTML = `
+                                        <td class="py-3 px-4"><div>${fechaFormateada}</div><div class="text-xs text-gray-500">${horaFormateada}</div></td>
+                                        <td class="py-3 px-4">${nombreClienteCompleto || 'N/A'}</td>
+                                        <td class="py-3 px-4"><div>${cita.marca_vehiculo || ''} ${cita.modelo_vehiculo || ''} (${cita.ano_vehiculo || 'S/A'})</div><div class="text-xs text-gray-500">(${cita.placa_vehiculo || 'S/P'})</div></td>
+                                        <td class="py-3 px-4">${nombreServicioMostrado || cita.motivo_detalle || 'N/A'}</td>
+                                        <td class="py-3 px-4"><span class="status-badge status-${estadoCita.replace(/\s+/g, '-')}">${estadoCita}</span></td>
+                                        <td class="py-3 px-4 audit-info"><div>${cita.creado_por_username || 'N/A'}</div><div>${fechaCreacionFmt}</div></td> <td class="py-3 px-4 audit-info"><div>${cita.modificado_por_username || '---'}</div><div>${fechaModifFmt}</div></td> <td class="py-3 px-4 text-right whitespace-nowrap">${botonesAccion}</td>
+                                    `;
+
+                                    // Clasificación
+                                    if (estadoCita === 'Pendiente' && fechaCitaDate instanceof Date && !isNaN(fechaCitaDate) && fechaCitaDate >= today) {
+                                        tablaCitasProximasBody.appendChild(tr); hayProximas = true;
+                                    } else {
+                                        tablaCitasPasadasBody.appendChild(tr); hayPasadas = true;
+                                    }
+                                });
+
+                                if (!hayProximas) tablaCitasProximasBody.innerHTML = '<tr><td colspan="8" class="py-4 px-4 text-center text-gray-500">No hay citas próximas pendientes con los filtros aplicados.</td></tr>'; // Colspan a 8
+                                if (!hayPasadas) tablaCitasPasadasBody.innerHTML = '<tr><td colspan="8" class="py-4 px-4 text-center text-gray-500">No hay citas en el historial con los filtros aplicados.</td></tr>'; // Colspan a 8
+                            }
+                        } else {
+                            todasLasCitas = [];
+                            console.error("Error al obtener citas:", data.message);
+                            const errorMsg = '<tr><td colspan="8" class="py-4 px-4 text-center text-red-500">Error al cargar citas. Intente de nuevo.</td></tr>';
+                            tablaCitasProximasBody.innerHTML = errorMsg;
+                            tablaCitasPasadasBody.innerHTML = errorMsg;
+                        }
+                    } catch (error) {
+                        todasLasCitas = [];
+                        console.error("Error de red al obtener citas:", error);
+                        const errorMsg = '<tr><td colspan="8" class="py-4 px-4 text-center text-red-500">Error de conexión al cargar citas.</td></tr>';
+                        tablaCitasProximasBody.innerHTML = errorMsg;
+                        tablaCitasPasadasBody.innerHTML = errorMsg;
+                    }
+                }
+
+
+                // --- Cancel Appointment Function ---
+                 async function cancelarCita(citaId, nombreCliente) {
+                    if (!confirm(`¿Está seguro que desea CANCELAR la cita de ${nombreCliente}?`)) return;
+                    showActionFeedback('Cancelando cita...', 'loading');
+                    try {
+                        const payload = { userId: localCurrentUser?.id };
+                        const response = await fetch(`http://localhost:3000/api/citas/${citaId}/cancelar`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                         });
+                        const result = await response.json();
+                        if (response.ok && result.success) {
+                            showActionFeedback(result.message || 'Cita cancelada correctamente.', 'success');
+                            cargarYMostrarCitas(filtroFechaInicio.value, filtroFechaFin.value);
+                        } else {
+                            showActionFeedback(result.message || 'Error al cancelar la cita.', 'error');
+                        }
+                    } catch (error) {
+                        console.error("Error de red al cancelar cita:", error);
+                        showActionFeedback('Error de conexión al intentar cancelar.', 'error');
+                    }
+                }
+
+                 // --- Complete Appointment Function ---
+                 async function completarCita(citaId, nombreCliente) {
+                    if (!confirm(`¿Marcar como COMPLETADA la cita de ${nombreCliente}?`)) return;
+                    showActionFeedback('Marcando cita como completada...', 'loading');
+                    try {
+                        const payload = { userId: localCurrentUser?.id };
+                        const response = await fetch(`http://localhost:3000/api/citas/${citaId}/completar`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        const result = await response.json();
+                        if (response.ok && result.success) {
+                            showActionFeedback(result.message || 'Cita completada correctamente.', 'success');
+                            cargarYMostrarCitas(filtroFechaInicio.value, filtroFechaFin.value);
+                        } else {
+                            showActionFeedback(result.message || 'Error al marcar la cita como completada.', 'error');
+                        }
+                    } catch (error) {
+                        console.error("Error de red al completar cita:", error);
+                        showActionFeedback('Error de conexión al intentar completar la cita.', 'error');
+                    }
+                }
+
+                // --- Show Appointment Details Modal Function (MODIFICADO para auditoría) ---
+                 function mostrarDetallesCita(citaId) {
+                    console.log(`Mostrando detalles para cita ID: ${citaId}`);
+                    const citaSeleccionada = todasLasCitas.find(c => c.id_cita == citaId);
+
+                    if (!citaSeleccionada) {
+                        console.error("No se encontró la cita con ID:", citaId);
+                        showActionFeedback('Error: No se pudieron cargar los detalles de la cita.', 'error');
+                        return;
+                    }
+
+                    let fechaFormateadaModal = formatDate(citaSeleccionada.fecha_cita);
+                    let horaFormateadaModal = formatTime(citaSeleccionada.hora_cita);
+                    const fechaCreacionFmtModal = formatDateTime(citaSeleccionada.fecha_creacion);
+                    const fechaModifFmtModal = formatDateTime(citaSeleccionada.fecha_modificacion);
+
+                    modalClienteNombre.textContent = `${citaSeleccionada.nombre_cliente || ''} ${citaSeleccionada.apellido_cliente || ''}`.trim() || 'N/A';
+                    modalClienteTelefono.textContent = citaSeleccionada.telefono_cliente || 'N/A';
+                    modalClienteEmail.textContent = citaSeleccionada.email_cliente || 'N/A';
+                    modalFechaHora.textContent = `${fechaFormateadaModal} ${horaFormateadaModal}`.trim();
+                    modalVehiculoInfo.textContent = `${citaSeleccionada.marca_vehiculo || ''} ${citaSeleccionada.modelo_vehiculo || ''} (${citaSeleccionada.ano_vehiculo || 'S/A'})`;
+                    modalVehiculoPlaca.textContent = citaSeleccionada.placa_vehiculo || 'S/P';
+                    modalKilometraje.textContent = citaSeleccionada.kilometraje !== null ? citaSeleccionada.kilometraje : 'N/A';
+                    modalEstado.textContent = citaSeleccionada.estado || 'Pendiente';
+                    modalEstado.className = `status-badge status-${(citaSeleccionada.estado || 'Pendiente').replace(/\s+/g, '-')}`;
+                    modalServicioPrincipal.textContent = getNombreServicio(citaSeleccionada.servicio_principal);
+                    modalMotivoDetalle.textContent = citaSeleccionada.motivo_detalle || '(Ninguno)';
+
+                    if(modalCreadoPor) modalCreadoPor.textContent = citaSeleccionada.creado_por_username || 'Sistema/Desconocido';
+                    if(modalFechaCreacion) modalFechaCreacion.textContent = fechaCreacionFmtModal;
+                    if(modalModificadoPor) modalModificadoPor.textContent = citaSeleccionada.modificado_por_username || '---';
+                    if(modalFechaModificacion) modalFechaModificacion.textContent = fechaModifFmtModal;
+
+                    if(modalOverlay) modalOverlay.classList.remove('hidden');
+                    if(citaDetailsModal) citaDetailsModal.classList.remove('hidden');
+                 }
+
+                // --- Close Details Modal Function ---
+                 function cerrarModalDetalles() {
+                     if(modalOverlay) modalOverlay.classList.add('hidden');
+                     if(citaDetailsModal) citaDetailsModal.classList.add('hidden');
+                 }
+
+                 // --- Open Edit Modal Function ---
+                 async function abrirModalEdicion(citaId) {
+                     console.log(`Abriendo modal de edición para cita ID: ${citaId}`);
+                     showEditFeedback('Cargando datos...', 'loading');
+                     await cargarServicios();
+                     populateEditServiceSelect();
+
+                     try {
+                         const response = await fetch(`http://localhost:3000/api/citas/${citaId}`);
+                         const result = await response.json();
+
+                         if (response.ok && result.success && result.cita) {
+                             const cita = result.cita;
+                             console.log("Datos para editar:", cita);
+
+                             editCitaIdInput.value = cita.id_cita;
+                             editClienteInfo.textContent = `${cita.nombre_cliente || ''} ${cita.apellido_cliente || ''}`.trim() || 'N/A';
+                             editTelefonoInfo.textContent = cita.telefono_cliente || 'N/A';
+                             editVehiculoInfo.textContent = `${cita.marca_vehiculo || ''} ${cita.modelo_vehiculo || ''} (${cita.ano_vehiculo || 'S/A'})`;
+                             editPlacaInfo.textContent = cita.placa_vehiculo || 'S/P';
+
+                             try { editFechaCitaInput.value = cita.fecha_cita.split('T')[0]; } catch { editFechaCitaInput.value = ''; }
+                             editHoraCitaInput.value = cita.hora_cita ? cita.hora_cita.substring(0, 5) : '';
+                             editKilometrajeInput.value = cita.kilometraje || '';
+                             editDetalleSintomasTextarea.value = cita.motivo_detalle || '';
+
+                             let servicioSeleccionado = false;
+                             if (cita.servicio_principal) {
+                                 let servicioIdBuscar = null;
+                                 const match = String(cita.servicio_principal).match(/^Servicio ID:\s*(\d+)$/);
+                                 if (match && match[1]) { servicioIdBuscar = match[1]; }
+                                 else if (!isNaN(parseInt(cita.servicio_principal))) { servicioIdBuscar = cita.servicio_principal; }
+
+                                 if (servicioIdBuscar && editSelectServicio.querySelector(`option[value="${servicioIdBuscar}"]`)) {
+                                     editSelectServicio.value = servicioIdBuscar;
+                                     servicioSeleccionado = true;
+                                 } else if (cita.servicio_principal === "Otros servicios / Diagnóstico" && editSelectServicio.querySelector('option[value="otros"]')) {
+                                      editSelectServicio.value = "otros";
+                                      servicioSeleccionado = true;
+                                 }
+                             }
+                             if (!servicioSeleccionado) { editSelectServicio.value = ""; }
+
+                             editFeedbackMessageDiv.style.display = 'none';
+                             if(modalEditOverlay) modalEditOverlay.classList.remove('hidden');
+                             if(citaEditModal) citaEditModal.classList.remove('hidden');
+
+                         } else {
+                             console.error("Error al obtener detalles de la cita para editar:", result.message);
+                             showActionFeedback(result.message || 'Error al cargar datos para editar.', 'error');
+                             showEditFeedback('Error al cargar datos.', 'error');
+                         }
+                     } catch (error) {
+                         console.error("Error de red al obtener detalles para editar:", error);
+                         showActionFeedback('Error de conexión al cargar datos para editar.', 'error');
+                         showEditFeedback('Error de conexión.', 'error');
+                     }
+                 }
+
+                 // --- Close Edit Modal Function ---
+                 function cerrarModalEdicion() {
+                     if(modalEditOverlay) modalEditOverlay.classList.add('hidden');
+                     if(citaEditModal) citaEditModal.classList.add('hidden');
+                     if(editCitaForm) editCitaForm.reset();
+                     editFeedbackMessageDiv.style.display = 'none';
+                     editFeedbackMessageDiv.innerHTML = '';
+                 }
+
+                // --- Table Actions Handler ---
+                function handleTableActions(event) {
+                    const targetButton = event.target.closest('button.action-button');
+                    if (!targetButton) return;
+
+                    const citaId = targetButton.dataset.id;
+                    const nombreCliente = targetButton.dataset.clienteNombre;
+
+                    if (targetButton.classList.contains('btn-view')) {
+                        mostrarDetallesCita(citaId);
+                    }
+                    else if (targetButton.classList.contains('btn-edit')) {
+                        abrirModalEdicion(citaId);
+                    }
+                    else if (targetButton.classList.contains('btn-complete')) {
+                        completarCita(citaId, nombreCliente);
+                    }
+                    else if (targetButton.classList.contains('btn-cancel')) {
+                        cancelarCita(citaId, nombreCliente);
+                    }
+                }
+                if(tablaCitasProximasBody) tablaCitasProximasBody.addEventListener('click', handleTableActions);
+                if(tablaCitasPasadasBody) tablaCitasPasadasBody.addEventListener('click', handleTableActions);
+
+                // --- Filter Functionality ---
+                if(btnFiltrar) { btnFiltrar.addEventListener('click', () => { cargarYMostrarCitas(filtroFechaInicio.value, filtroFechaFin.value); }); }
+                if(btnLimpiar) { btnLimpiar.addEventListener('click', () => { filtroFechaInicio.value = ''; filtroFechaFin.value = ''; cargarYMostrarCitas(); }); }
+
+                // --- Logout Functionality ---
+                if(logoutButton) { logoutButton.addEventListener('click', () => { localStorage.removeItem('userData'); window.location.replace('login.html'); }); }
+
+                // --- Modal Close Listeners ---
+                if(modalCloseButton) modalCloseButton.addEventListener('click', cerrarModalDetalles);
+                if(modalCloseButtonFooter) modalCloseButtonFooter.addEventListener('click', cerrarModalDetalles);
+                if(modalOverlay) modalOverlay.addEventListener('click', cerrarModalDetalles);
+                if(modalEditCloseButton) modalEditCloseButton.addEventListener('click', cerrarModalEdicion);
+                if(modalEditCancelButton) modalEditCancelButton.addEventListener('click', cerrarModalEdicion);
+                if(modalEditOverlay) modalEditOverlay.addEventListener('click', cerrarModalEdicion);
+
+                // --- Edit Form Submit Listener (Envia userId) ---
+                if(editCitaForm) {
+                    editCitaForm.addEventListener('submit', async (event) => {
+                        event.preventDefault();
+                        const citaId = editCitaIdInput.value;
+                        if (!citaId) { showEditFeedback('Error: No se encontró el ID de la cita.', 'error'); return; }
+                        if (!editFechaCitaInput.value || !editHoraCitaInput.value || !editSelectServicio.value) { showEditFeedback('Por favor, complete la fecha, hora y servicio.', 'error'); return; }
+
+                        modalEditSaveButton.disabled = true;
+                        showEditFeedback('Guardando cambios...', 'loading');
+
+                        const updatedData = {
+                            fecha_cita: editFechaCitaInput.value,
+                            hora_cita: editHoraCitaInput.value,
+                            kilometraje: editKilometrajeInput.value || null,
+                            servicio_id: editSelectServicio.value,
+                            detalle_sintomas: editDetalleSintomasTextarea.value,
+                            userId: localCurrentUser.id // Enviar ID del usuario actual
+                        };
+
+                        console.log(`Enviando PUT a /api/citas/${citaId}`, updatedData);
+
+                        try {
+                            const response = await fetch(`http://localhost:3000/api/citas/${citaId}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(updatedData)
+                            });
+                            const result = await response.json();
+
+                            if (response.ok && result.success) {
+                                showEditFeedback('Cita actualizada exitosamente.', 'success');
+                                cerrarModalEdicion();
+                                cargarYMostrarCitas(filtroFechaInicio.value, filtroFechaFin.value);
+                                showActionFeedback('La cita fue actualizada.', 'success');
+                            } else {
+                                showEditFeedback(result.message || 'Error al actualizar la cita.', 'error');
+                            }
+                        } catch (error) {
+                            console.error("Error de red al actualizar cita:", error);
+                            showEditFeedback('Error de conexión al guardar.', 'error');
+                        } finally {
+                            modalEditSaveButton.disabled = false;
+                        }
+                    });
+                }
+
+                // --- Initialization ---
+                async function inicializarPagina() {
+                    await cargarServicios();
+                    cargarYMostrarCitas();
+                    console.log("Página Mis Citas cargada y lógica inicializada.");
+                }
+                inicializarPagina();
+
+            } else { /* ... Auth error handling ... */ }
+        });
+    </script>
+</body>
+</html>

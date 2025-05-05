@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrar Nuevo Usuario - Servicio Automotriz</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        /* Estilo para fuente Inter */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* gray-100 */
+        }
+        /* Contenedor principal centrado */
+        .register-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem; /* Más padding */
+        }
+        /* Tarjeta del formulario */
+        .register-card {
+            background-color: white;
+            padding: 2rem; /* Más padding */
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); /* Sombra más pronunciada */
+            width: 100%;
+            max-width: 450px; /* Un poco más ancho para más campos */
+        }
+        /* Estilo para etiquetas */
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500; /* font-medium */
+            color: #374151; /* gray-700 */
+            font-size: 0.875rem; /* text-sm */
+        }
+        /* Estilo para campos de entrada */
+        input[type="text"],
+        input[type="email"], /* Si se usa email como username */
+        input[type="password"] {
+            width: 100%;
+            padding: 0.65rem 0.75rem; /* py-2.5 px-3 */
+            border: 1px solid #d1d5db; /* gray-300 */
+            border-radius: 0.375rem; /* rounded-md */
+            margin-bottom: 0.25rem; /* Menos espacio debajo del input */
+            box-shadow: inset 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            font-size: 0.875rem; /* text-sm */
+        }
+        input:focus {
+             outline: 2px solid transparent;
+             outline-offset: 2px;
+             border-color: #2563eb; /* blue-600 */
+             box-shadow: 0 0 0 2px #bfdbfe; /* blue-200 */
+        }
+        /* Input inválido */
+        input.is-invalid {
+             border-color: #ef4444; /* Red border */
+        }
+        /* Mensaje de error */
+        .error-message {
+            color: #dc2626; /* Red text */
+            font-size: 0.75rem; /* Smaller text */
+            margin-top: 0.1rem; /* Espacio mínimo */
+            margin-bottom: 0.75rem; /* Espacio antes del siguiente label */
+            min-height: 1em;
+            display: none; /* Oculto por defecto */
+        }
+        input.is-invalid + .error-message {
+            display: block;
+        }
+        /* Estilo para el botón */
+        .register-button {
+            display: block;
+            width: 100%;
+            padding: 0.75rem 1.5rem;
+            background-color: #16a34a; /* green-600 */
+            color: white;
+            font-weight: 600;
+            text-align: center;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+            margin-top: 1.5rem;
+        }
+        .register-button:hover:not(:disabled) {
+            background-color: #15803d; /* green-700 */
+        }
+         .register-button:disabled {
+             opacity: 0.5;
+             cursor: not-allowed;
+        }
+        /* Mensaje general de feedback */
+        .api-feedback-message {
+            font-size: 0.875rem; padding: 0.75rem 1rem; border-radius: 0.375rem; margin-bottom: 1rem; text-align: center; display: none; /* Oculto por defecto */
+        }
+        .feedback-success { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
+        .feedback-error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        .feedback-loading { background-color: #e0f2fe; color: #075985; border: 1px solid #7dd3fc; }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="register-container">
+        <div class="register-card">
+            <div class="text-center mb-6">
+                 <img src="https://placehold.co/150x50/003366/FFFFFF?text=A%26S+Palermo+SAC" alt="Logo Servicio Automotriz" class="mx-auto h-10 mb-2">
+                 <h2 class="text-xl font-semibold text-gray-800">Registrar Nuevo Usuario</h2>
+            </div>
+
+            <div id="api-feedback" class="api-feedback-message"></div>
+
+            <form id="register-form" action="#" method="POST" novalidate>
+                <div class="mb-3">
+                    <label for="nombre_completo">Nombre Completo</label>
+                    <input type="text" id="nombre_completo" name="nombre_completo" placeholder="Ej: Juan Pérez">
+                    <span class="error-message" id="error-nombre_completo"></span>
+                </div>
+                 <div class="mb-3">
+                    <label for="username">Nombre de Usuario</label>
+                    <input type="text" id="username" name="username" placeholder="Elija un nombre de usuario" required>
+                    <span class="error-message" id="error-username">Nombre de usuario requerido.</span>
+                </div>
+                <div class="mb-3">
+                    <label for="password">Contraseña</label>
+                    <input type="password" id="password" name="password" placeholder="Mínimo 6 caracteres" required minlength="6">
+                    <span class="error-message" id="error-password">La contraseña es requerida (mínimo 6 caracteres).</span>
+                </div>
+                 <div class="mb-3">
+                    <label for="password_confirm">Confirmar Contraseña</label>
+                    <input type="password" id="password_confirm" name="password_confirm" placeholder="Vuelva a escribir la contraseña" required>
+                    <span class="error-message" id="error-password_confirm">Las contraseñas no coinciden.</span>
+                </div>
+                <button type="submit" id="register-button" class="register-button">
+                    <i class="fas fa-user-plus mr-2"></i>Registrar Usuario
+                </button>
+            </form>
+
+            <div class="text-center mt-4">
+                <a href="login.html" class="text-sm text-blue-600 hover:text-blue-800 hover:underline">¿Ya tienes cuenta? Iniciar Sesión</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Elementos del DOM ---
+        const registerForm = document.getElementById('register-form');
+        const nombreCompletoInput = document.getElementById('nombre_completo');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const passwordConfirmInput = document.getElementById('password_confirm');
+        const registerButton = document.getElementById('register-button');
+        const apiFeedbackDiv = document.getElementById('api-feedback');
+
+        // --- Funciones de Validación ---
+        function validateField(input, showErrors = false) {
+            const errorSpan = document.getElementById(`error-${input.id}`);
+            let isValid = true;
+            let errorMessage = '';
+
+            if (input.required && (!input.value || input.value.trim() === '')) {
+                isValid = false;
+                errorMessage = 'Este campo es obligatorio.';
+            }
+            else if (input.minLength > 0 && input.value.length < input.minLength) {
+                 isValid = false;
+                 errorMessage = `Debe tener al menos ${input.minLength} caracteres.`;
+            }
+            else if (input.id === 'password_confirm' && input.value !== passwordInput.value) {
+                 isValid = false;
+                 errorMessage = 'Las contraseñas no coinciden.';
+            }
+
+             if (showErrors) {
+                 input.classList.toggle('is-invalid', !isValid);
+                 input.classList.add('interacted');
+                 if (errorSpan) {
+                    errorSpan.textContent = errorMessage;
+                    errorSpan.style.display = isValid ? 'none' : 'block';
+                 }
+             } else {
+                 if (isValid && input.classList.contains('is-invalid')) {
+                     input.classList.remove('is-invalid');
+                     if (errorSpan) errorSpan.style.display = 'none';
+                 }
+             }
+             return isValid;
+        }
+
+        function validateForm(showErrors = false) {
+            let isFormValid = true;
+            const inputsToValidate = [nombreCompletoInput, usernameInput, passwordInput, passwordConfirmInput];
+            inputsToValidate.forEach(input => {
+                 if (!validateField(input, showErrors)) {
+                     isFormValid = false;
+                 }
+            });
+            return isFormValid;
+        }
+
+        // --- Función para mostrar feedback de API ---
+         function showApiFeedback(message, type = 'info') {
+            let bgColor, textColor, borderColor, iconClass;
+            switch (type) {
+                case 'success': bgColor = 'feedback-success'; iconClass = 'fas fa-check-circle'; break;
+                case 'error': bgColor = 'feedback-error'; iconClass = 'fas fa-exclamation-triangle'; break;
+                case 'loading': bgColor = 'feedback-loading'; iconClass = 'fas fa-spinner fa-spin'; break;
+                default: bgColor = 'bg-gray-100'; textColor = 'text-gray-800'; borderColor = 'border-gray-300'; iconClass = 'fas fa-info-circle'; break;
+            }
+            apiFeedbackDiv.className = `api-feedback-message ${bgColor}`;
+            apiFeedbackDiv.innerHTML = `<i class="${iconClass} mr-2"></i> ${message}`;
+            apiFeedbackDiv.style.display = 'block';
+        }
+
+        // --- Event Listeners ---
+
+        registerForm.addEventListener('blur', (event) => {
+            const target = event.target;
+            if (target.tagName === 'INPUT') {
+                 target.classList.add('interacted');
+                 validateField(target, true);
+            }
+        }, true);
+
+        passwordInput.addEventListener('input', () => validateField(passwordConfirmInput, passwordConfirmInput.classList.contains('interacted')));
+        passwordConfirmInput.addEventListener('input', () => validateField(passwordConfirmInput, true));
+
+
+        // Handle form submission
+        registerForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            apiFeedbackDiv.style.display = 'none';
+
+            const isFormValid = validateForm(true);
+
+            registerForm.querySelectorAll('input').forEach(el => el.classList.add('submit-attempted'));
+
+            if (isFormValid) {
+                registerButton.disabled = true;
+                registerButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Registrando...';
+                showApiFeedback('Registrando usuario...', 'loading');
+
+                const formData = {
+                    nombre_completo: nombreCompletoInput.value.trim(),
+                    username: usernameInput.value.trim(),
+                    password: passwordInput.value
+                };
+
+                // --- Llamada Fetch al Backend Real ---
+                 try {
+                     // *** CORRECCIÓN AQUÍ: Usar URL absoluta ***
+                     const response = await fetch('http://localhost:3000/api/register', { // URL completa del backend
+                         method: 'POST',
+                         headers: { 'Content-Type': 'application/json' },
+                         body: JSON.stringify(formData)
+                     });
+                     const result = await response.json();
+
+                     if (response.ok && result.success) {
+                         showApiFeedback(result.message || 'Usuario registrado exitosamente. Ahora puede iniciar sesión.', 'success');
+                         registerForm.reset();
+                         registerForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid', 'interacted', 'submit-attempted'));
+                         registerForm.querySelectorAll('.error-message').forEach(el => el.style.display = 'none');
+                         setTimeout(() => { window.location.href = 'login.html'; }, 3000);
+                     } else {
+                         showApiFeedback(result.message || 'Error al registrar el usuario.', 'error');
+                     }
+                 } catch (error) {
+                     console.error("Error de red:", error);
+                     showApiFeedback('Error de conexión con el servidor. Intente nuevamente.', 'error'); // Este es el error que probablemente viste
+                 } finally {
+                     registerButton.disabled = false;
+                     registerButton.innerHTML = '<i class="fas fa-user-plus mr-2"></i>Registrar Usuario';
+                 }
+                 // --- Fin Llamada Fetch ---
+
+            } else {
+                 console.log("Formulario de registro inválido.");
+                 showApiFeedback('Por favor corrija los errores en el formulario.', 'error');
+                 registerForm.querySelector('.is-invalid')?.focus();
+            }
+        });
+
+        console.log("Página de registro cargada y lista para conectar.");
+    </script>
+</body>
+</html>
