@@ -110,12 +110,15 @@ app.post('/api/citas', async (req, res) => {
         console.log(`Cita insertada con ID: ${citaId}, estado: ${estadoInicial}, creada por User ID: ${userId}`);
 
         await connection.commit();
-        return res.status(201).json({ success: true, message: 'Cita registrada exitosamente', citaId: citaId });
+        return res.status(201).json({
+            success: true,
+            message: 'Cita registrada exitosamente.', // Mensaje limpio
+            citaId: citaId
+        });
 
     } catch (error) {
         console.error('Error durante la transacción de base de datos (/api/citas):', error);
         if (connection) await connection.rollback();
-
         // Manejo de errores duplicados mejorado
         if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
             let campoDuplicado = 'desconocido';
@@ -285,17 +288,14 @@ app.post('/api/register', async (req, res) => {
             const match = error.message.match(/for key '(.+?)'/);
              if (match && match[1]) {
                 const keyName = match[1];
-                // Asumiendo que el índice unique de username se llama 'username' o similar
-                if (keyName.toLowerCase().includes('username') || keyName.toLowerCase().includes('usuarios.username')) { // Ser más flexible con el nombre del índice
+                // Ajusta estos nombres según los nombres EXACTOS de tus índices UNIQUE
+                if (keyName.toLowerCase().includes('username') || keyName.toLowerCase().includes('usuarios.username')) {
                     campoDuplicado = 'Nombre de Usuario';
                      return res.status(409).json({ success: false, message: `Error: El ${campoDuplicado} ya está en uso.` });
-                }
-                 else { campoDuplicado = keyName; } // Usar nombre del índice si no es username
+                } else { campoDuplicado = keyName; }
             }
-            // Mensaje genérico si no se identifica el campo específico
             return res.status(409).json({ success: false, message: `Error: Conflicto de datos duplicados para '${campoDuplicado}'.` });
         }
-        // Otros errores
         return res.status(500).json({ success: false, message: 'Error interno del servidor durante el registro.' });
     } finally {
         if (connection) { connection.release(); }
@@ -304,25 +304,128 @@ app.post('/api/register', async (req, res) => {
 
 // --- Rutas API para SERVICIOS ---
 
-// GET /api/servicios - Obtener lista de servicios activos
+// GET /api/servicios - Obtener lista de servicios
 app.get('/api/servicios', async (req, res) => {
-    console.log("Petición recibida para GET /api/servicios");
+    const soloActivos = req.query.activos === 'true';
+    console.log(`Petición recibida para GET /api/servicios (Solo Activos: ${soloActivos})`);
     let connection;
     try {
         connection = await dbPool.getConnection();
-        const [servicios] = await connection.query( "SELECT id_servicio, nombre_servicio FROM Servicios WHERE activo = TRUE ORDER BY nombre_servicio" );
-        return res.status(200).json({ success: true, servicios: servicios });
+        let sqlQuery = "SELECT id_servicio, nombre_servicio, activo FROM Servicios";
+        if (soloActivos) { sqlQuery += " WHERE activo = TRUE"; }
+        sqlQuery += " ORDER BY nombre_servicio";
+        const [servicios] = await connection.query(sqlQuery);
+        const serviciosConBooleano = servicios.map(s => ({ ...s, activo: Boolean(s.activo) }));
+        return res.status(200).json({ success: true, servicios: serviciosConBooleano });
+    } catch (error) { console.error('Error al obtener servicios:', error); return res.status(500).json({ success: false, message: 'Error al obtener la lista de servicios.' }); }
+    finally { if (connection) { connection.release(); } }
+});
+
+// POST /api/servicios - Crear un nuevo servicio
+app.post('/api/servicios', async (req, res) => {
+    const { nombre_servicio } = req.body;
+    console.log(`Petición POST /api/servicios recibida para crear: ${nombre_servicio}`);
+    if (!nombre_servicio || nombre_servicio.trim() === '') { return res.status(400).json({ success: false, message: 'El nombre del servicio es requerido.' }); }
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        const [existe] = await connection.query('SELECT id_servicio FROM Servicios WHERE LOWER(nombre_servicio) = LOWER(?)', [nombre_servicio.trim()]);
+        if (existe.length > 0) { return res.status(409).json({ success: false, message: 'Error: Ya existe un servicio con ese nombre.' }); }
+        const [result] = await connection.query( 'INSERT INTO Servicios (nombre_servicio, activo) VALUES (?, TRUE)', [nombre_servicio.trim()] );
+        const nuevoId = result.insertId;
+        return res.status(201).json({ success: true, message: 'Servicio añadido exitosamente.', id_servicio: nuevoId });
     } catch (error) {
-        console.error('Error al obtener servicios:', error);
-        return res.status(500).json({ success: false, message: 'Error al obtener la lista de servicios.' });
+        console.error('Error al añadir servicio:', error);
+         if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) { return res.status(409).json({ success: false, message: 'Error: Ya existe un servicio con ese nombre.' }); }
+        return res.status(500).json({ success: false, message: 'Error interno al añadir el servicio.' });
     } finally {
-        if (connection) { connection.release(); }
+        if (connection) connection.release();
     }
 });
 
+// PUT /api/servicios/:id - Actualizar nombre de un servicio
+app.put('/api/servicios/:id', async (req, res) => {
+    const servicioId = req.params.id;
+    const { nombre_servicio } = req.body;
+    console.log(`Petición PUT /api/servicios/${servicioId} recibida para actualizar nombre a: ${nombre_servicio}`);
+    if (isNaN(parseInt(servicioId))) { return res.status(400).json({ success: false, message: 'ID de servicio inválido.' }); }
+    if (!nombre_servicio || nombre_servicio.trim() === '') { return res.status(400).json({ success: false, message: 'El nuevo nombre del servicio es requerido.' }); }
+
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        await connection.beginTransaction();
+        const [existe] = await connection.query( 'SELECT id_servicio FROM Servicios WHERE LOWER(nombre_servicio) = LOWER(?) AND id_servicio != ?', [nombre_servicio.trim(), servicioId] );
+        if (existe.length > 0) { await connection.rollback(); return res.status(409).json({ success: false, message: 'Error: Ya existe otro servicio con ese nombre.' }); }
+        const [result] = await connection.query( 'UPDATE Servicios SET nombre_servicio = ? WHERE id_servicio = ?', [nombre_servicio.trim(), servicioId] );
+        await connection.commit();
+        if (result.affectedRows > 0) { return res.status(200).json({ success: true, message: 'Servicio actualizado exitosamente.' }); }
+        else { return res.status(404).json({ success: false, message: 'Servicio no encontrado.' }); }
+    } catch (error) {
+        console.error(`Error al actualizar servicio ID: ${servicioId}:`, error);
+        if (connection) await connection.rollback();
+         if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) { return res.status(409).json({ success: false, message: 'Error: Ya existe otro servicio con ese nombre.' }); }
+        return res.status(500).json({ success: false, message: 'Error interno al actualizar el servicio.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+// PATCH /api/servicios/:id/toggle - Cambiar estado activo/inactivo
+app.patch('/api/servicios/:id/toggle', async (req, res) => {
+    const servicioId = req.params.id;
+    console.log(`Petición PATCH /api/servicios/${servicioId}/toggle recibida`);
+    if (isNaN(parseInt(servicioId))) { return res.status(400).json({ success: false, message: 'ID de servicio inválido.' }); }
+
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        const [result] = await connection.query( 'UPDATE Servicios SET activo = NOT activo WHERE id_servicio = ?', [servicioId] );
+        if (result.affectedRows > 0) {
+             const [newState] = await connection.query('SELECT activo FROM Servicios WHERE id_servicio = ?', [servicioId]);
+             const nuevoEstado = Boolean(newState[0]?.activo);
+            console.log(`Estado del servicio ID: ${servicioId} cambiado a ${nuevoEstado ? 'Activo' : 'Inactivo'}.`);
+            return res.status(200).json({ success: true, message: `Estado del servicio cambiado a ${nuevoEstado ? 'Activo' : 'Inactivo'}.`, nuevoEstado: nuevoEstado });
+        } else {
+            console.log(`Toggle fallido: Servicio ID: ${servicioId} no encontrado.`);
+            return res.status(404).json({ success: false, message: 'Servicio no encontrado.' });
+        }
+    } catch (error) { console.error(`Error al cambiar estado del servicio ID: ${servicioId}:`, error); return res.status(500).json({ success: false, message: 'Error interno al cambiar estado del servicio.' }); }
+    finally { if (connection) connection.release(); }
+});
+
+// DELETE /api/servicios/:id - Eliminar un servicio
+app.delete('/api/servicios/:id', async (req, res) => {
+    const servicioId = req.params.id;
+    console.log(`Petición DELETE /api/servicios/${servicioId} recibida`);
+    if (isNaN(parseInt(servicioId))) { return res.status(400).json({ success: false, message: 'ID de servicio inválido.' }); }
+
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        await connection.beginTransaction();
+        // Verificar si el servicio está siendo usado en alguna CITA
+        const [citasAsociadas] = await connection.query( 'SELECT COUNT(*) as count FROM Citas WHERE servicio_principal = ? OR servicio_principal = ?', [`Servicio ID: ${servicioId}`, servicioId] );
+        if (citasAsociadas[0].count > 0) { await connection.rollback(); return res.status(409).json({ success: false, message: 'Error: No se puede eliminar el servicio porque está asociado a una o más citas.' }); }
+        // Eliminar el servicio
+        const [result] = await connection.query('DELETE FROM Servicios WHERE id_servicio = ?', [servicioId]);
+        await connection.commit();
+        if (result.affectedRows > 0) { return res.status(200).json({ success: true, message: 'Servicio eliminado exitosamente.' }); }
+        else { return res.status(404).json({ success: false, message: 'Servicio no encontrado.' }); }
+    } catch (error) {
+        console.error(`Error al eliminar servicio ID: ${servicioId}:`, error);
+        if (connection) await connection.rollback();
+         if (error.code === 'ER_ROW_IS_REFERENCED_2') { return res.status(409).json({ success: false, message: 'Error: No se puede eliminar el servicio porque está referenciado en otras tablas.' }); }
+        return res.status(500).json({ success: false, message: 'Error interno al eliminar el servicio.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+
 // --- Rutas API para VEHÍCULOS ---
 
-// GET /api/vehiculos/cliente - Obtener vehículos por teléfono de cliente (para formulario de citas)
+// GET /api/vehiculos/cliente - Obtener vehículos por teléfono de cliente
 app.get('/api/vehiculos/cliente', async (req, res) => {
     const telefonoCliente = req.query.telefono;
     if (!telefonoCliente) { return res.status(400).json({ success: false, message: 'Número de teléfono es requerido.' }); }
@@ -334,15 +437,11 @@ app.get('/api/vehiculos/cliente', async (req, res) => {
         const cliente = clientes[0];
         const [vehiculos] = await connection.query( 'SELECT id_vehiculo, marca, modelo, placa, ano FROM Vehiculos WHERE id_cliente = ? ORDER BY marca, modelo', [cliente.id_cliente] );
         return res.status(200).json({ success: true, vehicles: vehiculos, cliente: {id_cliente: cliente.id_cliente, nombre_cliente: cliente.nombres, apellido_cliente: cliente.apellidos} });
-    } catch (error) {
-        console.error('Error al obtener vehículos por teléfono:', error);
-        return res.status(500).json({ success: false, message: 'Error al obtener los vehículos del cliente.' });
-    } finally {
-        if (connection) { connection.release(); }
-    }
+    } catch (error) { console.error('Error al obtener vehículos por teléfono:', error); return res.status(500).json({ success: false, message: 'Error al obtener los vehículos del cliente.' }); }
+    finally { if (connection) { connection.release(); } }
 });
 
-// GET /api/clientes/buscar - Buscar cliente por teléfono (para modal de vehículos)
+// GET /api/clientes/buscar - Buscar cliente por teléfono
 app.get('/api/clientes/buscar', async (req, res) => {
     const telefono = req.query.telefono;
     console.log(`Buscando cliente por teléfono: ${telefono}`);
@@ -357,16 +456,12 @@ app.get('/api/clientes/buscar', async (req, res) => {
         } else {
             return res.status(404).json({ success: false, message: 'Cliente no encontrado con ese teléfono.' });
         }
-    } catch (error) {
-        console.error("Error buscando cliente por teléfono:", error);
-        return res.status(500).json({ success: false, message: 'Error interno al buscar cliente.' });
-    } finally {
-        if (connection) connection.release();
-    }
+    } catch (error) { console.error("Error buscando cliente por teléfono:", error); return res.status(500).json({ success: false, message: 'Error interno al buscar cliente.' }); }
+    finally { if (connection) connection.release(); }
 });
 
 
-// GET /api/vehiculos - Obtener lista de vehículos (con filtro opcional por placa)
+// GET /api/vehiculos - Obtener lista de vehículos
 app.get('/api/vehiculos', async (req, res) => {
     const placaQuery = req.query.placa;
     console.log(`Petición GET /api/vehiculos recibida. Buscando placa: ${placaQuery || 'Todos'}`);
@@ -386,7 +481,7 @@ app.get('/api/vehiculos', async (req, res) => {
     finally { if (connection) { connection.release(); } }
 });
 
-// POST /api/vehiculos - Añadir un nuevo vehículo asociado a un cliente existente
+// POST /api/vehiculos - Añadir un nuevo vehículo
 app.post('/api/vehiculos', async (req, res) => {
     console.log('Datos recibidos para nuevo vehículo:', req.body);
     const { placa_vehiculo, marca_vehiculo, modelo_vehiculo, ano_vehiculo, id_cliente } = req.body;
@@ -400,7 +495,7 @@ app.post('/api/vehiculos', async (req, res) => {
         const [clienteExiste] = await connection.query('SELECT id_cliente FROM Clientes WHERE id_cliente = ?', [id_cliente]);
         if (clienteExiste.length === 0) { await connection.rollback(); return res.status(404).json({ success: false, message: 'Error: El cliente especificado no existe.' }); }
         const [placaExistente] = await connection.query('SELECT id_vehiculo FROM Vehiculos WHERE placa = ?', [placa_vehiculo.toUpperCase()]);
-        if (placaExistente.length > 0) { await connection.rollback(); return res.status(409).json({ success: false, message: 'Error: La placa del vehículo ya está registrada.' }); } // Mensaje específico
+        if (placaExistente.length > 0) { await connection.rollback(); return res.status(409).json({ success: false, message: 'Error: La placa del vehículo ya está registrada.' }); }
         const sqlInsert = `INSERT INTO Vehiculos (id_cliente, marca, modelo, ano, placa) VALUES (?, ?, ?, ?, ?)`;
         const insertParams = [ id_cliente, marca_vehiculo, modelo_vehiculo, ano_vehiculo, placa_vehiculo.toUpperCase() ];
         const [result] = await connection.query(sqlInsert, insertParams);
@@ -414,11 +509,7 @@ app.post('/api/vehiculos', async (req, res) => {
         if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
             let campoDuplicado = 'desconocido';
             const match = error.message.match(/for key '(.+?)'/);
-            if (match && match[1]) {
-                const keyName = match[1];
-                if (keyName.toLowerCase().includes('placa')) campoDuplicado = 'Placa';
-                else campoDuplicado = keyName;
-            }
+            if (match && match[1]) { const keyName = match[1]; if (keyName.toLowerCase().includes('placa')) campoDuplicado = 'Placa'; else campoDuplicado = keyName; }
             return res.status(409).json({ success: false, message: `Error: El valor para '${campoDuplicado}' ya existe.` });
         }
         return res.status(500).json({ success: false, message: 'Error interno al añadir el vehículo.' });
@@ -451,15 +542,10 @@ app.put('/api/vehiculos/:id', async (req, res) => {
     } catch (error) {
         console.error(`Error al actualizar vehículo ID: ${vehiculoId}:`, error);
         if (connection) await connection.rollback();
-        // Manejo de error duplicado mejorado
          if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
              let campoDuplicado = 'desconocido';
              const match = error.message.match(/for key '(.+?)'/);
-             if (match && match[1]) {
-                 const keyName = match[1];
-                 if (keyName.toLowerCase().includes('placa')) campoDuplicado = 'Placa';
-                 else campoDuplicado = keyName;
-             }
+             if (match && match[1]) { const keyName = match[1]; if (keyName.toLowerCase().includes('placa')) campoDuplicado = 'Placa'; else campoDuplicado = keyName; }
              return res.status(409).json({ success: false, message: `Error: El valor para '${campoDuplicado}' ya existe.` });
         }
         return res.status(500).json({ success: false, message: 'Error interno al actualizar el vehículo.' });

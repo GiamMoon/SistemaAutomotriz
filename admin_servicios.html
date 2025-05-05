@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Servicios - Panel de Administración</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <script>
+        // Auth check in head - Declarar fuera para scope global
+        let isAuthenticatedInHead = false;
+        let currentUserData = null; // Usaremos esta variable globalmente
+        try {
+            const storedUserData = localStorage.getItem('userData');
+            if (!storedUserData) {
+                console.log("Auth Check (Head): No user data. Redirecting...");
+                if (!window.location.pathname.endsWith('login.html')) window.location.replace('login.html');
+                throw new Error("Redirecting");
+            }
+            currentUserData = JSON.parse(storedUserData); // Asignar a la variable global
+            if (!currentUserData || !currentUserData.username || !currentUserData.id) {
+                 console.error("Auth Check (Head): Invalid user data format.");
+                 localStorage.removeItem('userData');
+                 if (!window.location.pathname.endsWith('login.html')) window.location.replace('login.html');
+                 throw new Error("Invalid user data.");
+             }
+            console.log("Auth Check (Head): OK for user:", currentUserData.username);
+            isAuthenticatedInHead = true;
+        } catch (e) {
+             if (e.message !== "Redirecting" && e.message !== "Invalid user data.") {
+                 console.error("Auth Check Error (Head), redirecting:", e);
+                 localStorage.removeItem('userData');
+                 if (!window.location.pathname.endsWith('login.html')) {
+                     window.location.replace('login.html');
+                 }
+             }
+             currentUserData = null; // Asegurar que sea null si hay error
+             isAuthenticatedInHead = false;
+         }
+    </script>
+    <style>
+        /* Styles */
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .active-link { background-color: #e0f2fe; color: #0c4a6e; font-weight: 600; }
+        .sidebar-link:hover { background-color: #f0f9ff; color: #0c4a6e; }
+        .main-container { min-height: 100vh; display: flex; }
+        .main-content-area { flex-grow: 1; display: flex; flex-direction: column; margin-left: 16rem; width: calc(100% - 16rem); }
+        .header { height: 4rem; background-color: white; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); display: flex; align-items: center; justify-content: flex-end; padding: 0 1.5rem; flex-shrink: 0; position: sticky; top: 0; z-index: 10; }
+        .page-content { padding: 1.5rem; flex-grow: 1; overflow-y: auto; }
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); padding: 1.5rem; }
+        .table th, .table td { padding: 0.75rem 1rem; text-align: left; vertical-align: middle; border-bottom: 1px solid #e5e7eb; font-size: 0.8rem; }
+        .table th { background-color: #f9fafb; color: #6b7280; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom-width: 2px; white-space: nowrap; }
+        .table tbody tr:last-child td { border-bottom: none; }
+        .table tbody tr:nth-child(even) { background-color: #f9fafb; }
+        .action-button { padding: 0.25rem 0.5rem; font-size: 0.75rem; border-radius: 0.25rem; margin-left: 0.5rem; cursor: pointer; border: none; transition: background-color 0.2s ease; }
+        .btn-edit { background-color: #f59e0b; color: white; } .btn-edit:hover { background-color: #d97706; }
+        /* Colores Toggle: btn-toggle-active (representa estado activo -> color verde), btn-toggle-inactive (representa estado inactivo -> color gris) */
+        .btn-toggle-active { background-color: #10b981; color: white; } .btn-toggle-active:hover { background-color: #059669; } /* Verde (Activo) */
+        .btn-toggle-inactive { background-color: #6b7280; color: white; } .btn-toggle-inactive:hover { background-color: #4b5563; } /* Gris (Inactivo) */
+        .btn-delete { background-color: #ef4444; color: white; } .btn-delete:hover { background-color: #dc2626; }
+        .sidebar { width: 16rem; background-color: #ffffff; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; flex-shrink: 0; height: 100vh; position: fixed; top: 0; left: 0; z-index: 20; }
+        .sidebar-header { height: 4rem; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #e5e7eb; padding: 0 1rem; flex-shrink: 0; }
+        .sidebar-nav { flex-grow: 1; margin-top: 1.5rem; padding: 0 1rem; space-y: 0.5rem; overflow-y: auto; }
+        .sidebar-link { display: flex; align-items: center; padding: 0.625rem 1rem; font-size: 0.875rem; border-radius: 0.375rem; color: #374151; text-decoration: none; }
+        .sidebar-link i { width: 1.25rem; height: 1.25rem; margin-right: 0.75rem; color: #6b7280; }
+        .active-link i { color: #0c4a6e; }
+        .sidebar-footer { padding: 1rem; margin-top: auto; border-top: 1px solid #e5e7eb; flex-shrink: 0; }
+        .user-info { text-align: center; padding: 1rem 1rem 0; flex-shrink: 0; }
+        .user-name { font-weight: 600; color: #1f2937; }
+        .user-role { font-size: 0.75rem; color: #6b7280; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #e5e7eb; }
+        .btn { padding: 0.6rem 1.2rem; border-radius: 0.375rem; font-weight: 600; text-align: center; cursor: pointer; transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, opacity 0.2s ease-in-out; border: 1px solid transparent; font-size: 0.875rem; }
+        .btn-primary { background-color: #2563eb; color: white; }
+        .btn-primary:hover:not(:disabled) { background-color: #1d4ed8; }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .feedback-message { font-size: 0.875rem; padding: 0.75rem 1rem; border-radius: 0.375rem; margin-top: 1rem; margin-bottom: 1rem; text-align: center; display: none; }
+        .feedback-success { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
+        .feedback-error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        .feedback-loading { background-color: #e0f2fe; color: #075985; border: 1px solid #7dd3fc; }
+        body.auth-pending .main-container { visibility: hidden; opacity: 0; }
+        body:not(.auth-pending) .main-container { visibility: visible; opacity: 1; transition: opacity 0.3s ease-in-out; }
+        /* Estilos para modal */
+        #servicio-modal label { display: block; margin-bottom: 0.25rem; font-size: 0.875rem; font-weight: 500; color: #374151; }
+        #servicio-modal input[type="text"] { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; box-shadow: inset 0 1px 2px 0 rgb(0 0 0 / 0.05); font-size: 0.875rem; transition: border-color 0.2s ease-in-out; }
+        #servicio-modal input:focus { outline: 2px solid transparent; outline-offset: 2px; border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }
+        .error-message { color: #dc2626; font-size: 0.75rem; margin-top: 0.25rem; display: none; min-height: 1em; }
+        input.is-invalid + .error-message { display: block; }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="auth-pending">
+    <div class="main-container">
+        <aside class="sidebar">
+            <div class="sidebar-header"> <img src="https://placehold.co/150x40/003366/FFFFFF?text=A%26S+Palermo" alt="Logo A&S Palermo SAC" class="h-8"> </div>
+            <div class="user-info px-4 pt-4"> <p id="user-name-display">...</p> <p id="user-role-display" class="user-role">...</p> </div>
+            <nav class="sidebar-nav">
+                <a href="admin_vehiculos.html" class="sidebar-link"> <i class="fas fa-car"></i> Vehículos </a>
+                <a href="admin_servicios.html" class="sidebar-link active-link"> <i class="fas fa-wrench"></i> Servicios </a>
+                <a href="admin_miscitas.html" class="sidebar-link"> <i class="fas fa-calendar-check"></i> Mis Citas </a>
+                <a href="admin.html" class="sidebar-link"> <i class="fas fa-plus-circle"></i> Nuevo Servicio </a>
+            </nav>
+            <div class="sidebar-footer"> <p class="text-xs text-gray-400 text-center">Panel de Administración v1.0</p> </div>
+        </aside>
+
+        <div class="main-content-area">
+             <header class="header">
+                 <div class="flex items-center space-x-4"> <button class="flex items-center text-sm text-gray-600 hover:text-gray-800"> <i class="fas fa-user-circle mr-1"></i> <span id="profile-name-display">...</span> <i class="fas fa-chevron-down ml-1 text-xs"></i> </button> <span class="text-gray-300">|</span> <button id="logout-button" class="text-sm text-gray-600 hover:text-red-700"> <i class="fas fa-sign-out-alt mr-1"></i> Cerrar Sesión </button> </div>
+             </header>
+
+            <main class="page-content">
+                <div id="seccion-servicios">
+                    <div class="flex justify-between items-center mb-6">
+                        <h1 class="text-2xl font-semibold text-gray-800">Gestión de Servicios</h1>
+                        <button id="btn-add-servicio" class="btn btn-primary">
+                            <i class="fas fa-plus mr-2"></i> Añadir Nuevo Servicio
+                        </button>
+                    </div>
+                    <div id="action-feedback-message" class="mt-4"></div>
+
+                    <div class="card bg-white rounded-xl shadow-md p-6 mt-6 mb-6">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-4">Lista de Servicios</h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 table">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col">ID</th>
+                                        <th scope="col">Nombre del Servicio</th>
+                                        <th scope="col">Estado</th>
+                                        <th scope="col" class="text-right">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabla-servicios-body" class="bg-white divide-y divide-gray-200 text-sm text-gray-700">
+                                    <tr><td colspan="4" class="py-4 px-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i> Cargando servicios...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <div id="modal-servicio-overlay" class="fixed inset-0 bg-black bg-opacity-60 z-40 hidden" aria-hidden="true"></div>
+    <div id="servicio-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden" aria-labelledby="modal-servicio-title" role="dialog" aria-modal="true">
+        <form id="servicio-form" class="bg-white rounded-lg shadow-xl max-w-lg w-full overflow-hidden transform transition-all">
+            <div class="bg-gray-100 px-4 py-3 sm:px-6 flex justify-between items-center border-b border-gray-200">
+                <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-servicio-title">Añadir Servicio</h3>
+                <button type="button" id="modal-servicio-close-button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center" aria-label="Cerrar modal">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                </button>
+            </div>
+            <div class="px-4 py-5 sm:p-6 space-y-4">
+                 <div id="servicio-feedback-message" class="mb-4"></div>
+                 <input type="hidden" id="servicio-id" name="id_servicio">
+                 <div>
+                     <label for="servicio-nombre">Nombre del Servicio</label>
+                     <input type="text" id="servicio-nombre" name="nombre_servicio" placeholder="Ej: Cambio de Aceite" required>
+                     <span class="error-message">El nombre es requerido.</span>
+                 </div>
+            </div>
+             <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-gray-200">
+                 <button type="submit" id="modal-servicio-save-button" class="btn btn-primary w-full sm:w-auto sm:ml-3">
+                     <i class="fas fa-save mr-2"></i> Guardar Servicio
+                 </button>
+                 <button type="button" id="modal-servicio-cancel-button" class="btn bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 mt-3 sm:mt-0 w-full sm:w-auto">
+                     Cancelar
+                 </button>
+             </div>
+        </form>
+    </div>
+    <script>
+        // Usar la variable global currentUserData definida en el head
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DEBUG: DOMContentLoaded event fired.");
+
+            if (!isAuthenticatedInHead || !currentUserData) {
+                 console.error("ERROR: Autenticación fallida o datos de usuario no disponibles. Redirigiendo.");
+                 if (!window.location.pathname.endsWith('login.html')) { window.location.replace('login.html'); }
+                 return;
+            }
+
+            let localCurrentUser = currentUserData;
+            document.body.classList.remove('auth-pending');
+            console.log("DEBUG: Usuario autenticado, inicializando script principal...");
+
+            // --- Update UI User ---
+            const userNameDisplay = document.getElementById('user-name-display');
+            const userRoleDisplay = document.getElementById('user-role-display');
+            const profileNameDisplay = document.getElementById('profile-name-display');
+            if (userNameDisplay) userNameDisplay.textContent = localCurrentUser.nombre || localCurrentUser.username;
+            if (userRoleDisplay) userRoleDisplay.textContent = localCurrentUser.rol || 'Usuario';
+            if (profileNameDisplay) profileNameDisplay.textContent = localCurrentUser.nombre || localCurrentUser.username;
+
+            // --- DOM Elements ---
+            const tablaServiciosBody = document.getElementById('tabla-servicios-body');
+            const logoutButton = document.getElementById('logout-button');
+            const btnAddServicio = document.getElementById('btn-add-servicio');
+            const actionFeedbackMessageDiv = document.getElementById('action-feedback-message');
+            const modalServicioOverlay = document.getElementById('modal-servicio-overlay');
+            const servicioModal = document.getElementById('servicio-modal');
+            const servicioForm = document.getElementById('servicio-form');
+            const modalServicioTitle = document.getElementById('modal-servicio-title');
+            const modalServicioCloseButton = document.getElementById('modal-servicio-close-button');
+            const modalServicioCancelButton = document.getElementById('modal-servicio-cancel-button');
+            const modalServicioSaveButton = document.getElementById('modal-servicio-save-button');
+            const servicioFeedbackMessageDiv = document.getElementById('servicio-feedback-message');
+            const servicioIdInput = document.getElementById('servicio-id');
+            const servicioNombreInput = document.getElementById('servicio-nombre');
+
+            // --- Global Variables ---
+            let allServices = [];
+            let editMode = false;
+
+            // --- Feedback Functions ---
+            function showActionFeedback(message, type = 'info') {
+                let bgColor, iconClass; const feedbackDiv = actionFeedbackMessageDiv; if (!feedbackDiv) return;
+                switch (type) { case 'success': bgColor = 'feedback-success'; iconClass = 'fas fa-check-circle'; break; case 'error': bgColor = 'feedback-error'; iconClass = 'fas fa-exclamation-triangle'; break; case 'loading': bgColor = 'feedback-loading'; iconClass = 'fas fa-spinner fa-spin'; break; default: bgColor = 'bg-gray-100 border border-gray-300 text-gray-800'; iconClass = 'fas fa-info-circle'; break; }
+                feedbackDiv.className = `feedback-message ${bgColor} flex items-center justify-center`; feedbackDiv.innerHTML = `<i class="${iconClass} mr-2"></i> ${message}`; feedbackDiv.style.display = 'block';
+                if (type !== 'loading') { setTimeout(() => { if(feedbackDiv) feedbackDiv.style.display = 'none'; feedbackDiv.innerHTML = ''; }, 4000); }
+            }
+            function showServicioModalFeedback(message, type = 'info') {
+                 let bgColor, iconClass; const feedbackDiv = servicioFeedbackMessageDiv; if (!feedbackDiv) return;
+                 if (type === 'clear') { feedbackDiv.style.display = 'none'; feedbackDiv.innerHTML = ''; return; }
+                 switch (type) { case 'success': bgColor = 'bg-green-100 border border-green-400 text-green-700'; iconClass = 'fas fa-check-circle'; break; case 'error': bgColor = 'bg-red-100 border border-red-400 text-red-700'; iconClass = 'fas fa-exclamation-triangle'; break; case 'loading': bgColor = 'bg-blue-100 border border-blue-400 text-blue-700'; iconClass = 'fas fa-spinner fa-spin'; break; default: bgColor = 'bg-gray-100 border border-gray-400 text-gray-700'; iconClass = 'fas fa-info-circle'; break; }
+                 feedbackDiv.className = `px-4 py-3 rounded relative text-sm ${bgColor}`; feedbackDiv.innerHTML = `<span class="inline-block align-middle mr-2"><i class="${iconClass}"></i></span><span class="inline-block align-middle">${message}</span>`; feedbackDiv.style.display = 'block';
+                 if (type !== 'loading') { setTimeout(() => { if(feedbackDiv) feedbackDiv.style.display = 'none'; feedbackDiv.innerHTML = ''; }, 4000); }
+             }
+             function clearModalValidationErrors() {
+                if (!servicioForm) return;
+                servicioForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid', 'border-red-500'));
+                servicioForm.querySelectorAll('.error-message').forEach(el => el.classList.add('hidden'));
+             }
+
+            // --- Load and Display Services ---
+            async function cargarServicios() {
+                console.log("DEBUG: Iniciando cargarServicios...");
+                if (!tablaServiciosBody) { console.error("ERROR: tablaServiciosBody no encontrado"); return; }
+                const loadingHtml = '<tr><td colspan="4" class="py-4 px-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i> Cargando servicios...</td></tr>';
+                tablaServiciosBody.innerHTML = loadingHtml;
+                allServices = [];
+                try {
+                    const response = await fetch('http://localhost:3000/api/servicios');
+                    const data = await response.json();
+                    console.log("DEBUG: Respuesta de /api/servicios:", data);
+                    tablaServiciosBody.innerHTML = '';
+
+                    if (response.ok && data.success && data.servicios) {
+                        allServices = data.servicios;
+                        if (data.servicios.length === 0) {
+                            tablaServiciosBody.innerHTML = '<tr><td colspan="4" class="py-4 px-4 text-center text-gray-500">No hay servicios registrados.</td></tr>';
+                        } else {
+                            data.servicios.forEach(s => {
+                                const tr = document.createElement('tr');
+                                const isActive = s.activo;
+                                const estadoTexto = isActive ? 'Activo' : 'Inactivo';
+                                const estadoClase = isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                                // CORRECCIÓN: Lógica de botón toggle y texto/icono
+                                const toggleButtonText = isActive ? 'Desactivar' : 'Activar'; // Acción a realizar
+                                const toggleButtonIcon = isActive ? 'fa-toggle-off' : 'fa-toggle-on';
+                                // CORRECCIÓN: Clase CSS basada en el estado actual para color
+                                const toggleButtonClass = isActive ? 'btn-toggle-active' : 'btn-toggle-inactive'; // Verde si activo, Gris si inactivo
+
+                                tr.innerHTML = `
+                                    <td class="py-3 px-4 text-gray-500">${s.id_servicio}</td>
+                                    <td class="py-3 px-4 font-medium text-gray-900">${s.nombre_servicio || 'N/A'}</td>
+                                    <td class="py-3 px-4"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${estadoClase}">${estadoTexto}</span></td>
+                                    <td class="py-3 px-4 text-right whitespace-nowrap">
+                                        <button class="action-button btn-edit" title="Editar Servicio" data-id="${s.id_servicio}" data-nombre="${s.nombre_servicio || ''}"><i class="fas fa-pencil-alt"></i></button>
+                                        <button class="action-button ${toggleButtonClass}" title="${toggleButtonText}" data-id="${s.id_servicio}" data-nombre="${s.nombre_servicio || ''}" data-activo="${isActive ? '1' : '0'}"><i class="fas ${toggleButtonIcon}"></i></button>
+                                        <button class="action-button btn-delete" title="Eliminar Servicio" data-id="${s.id_servicio}" data-nombre="${s.nombre_servicio || ''}"><i class="fas fa-trash-alt"></i></button>
+                                    </td>
+                                `;
+                                tablaServiciosBody.appendChild(tr);
+                            });
+                        }
+                    } else {
+                        console.error("Error al obtener servicios:", data ? data.message : 'Respuesta no OK');
+                        tablaServiciosBody.innerHTML = '<tr><td colspan="4" class="py-4 px-4 text-center text-red-500">Error al cargar servicios.</td></tr>';
+                    }
+                } catch (error) {
+                    console.error("Error de red al obtener servicios:", error);
+                    tablaServiciosBody.innerHTML = '<tr><td colspan="4" class="py-4 px-4 text-center text-red-500">Error de conexión.</td></tr>';
+                }
+            }
+
+            // --- Modal Handling ---
+            function openServicioModal(isEditMode = false, servicioData = null) {
+                editMode = isEditMode;
+                if (!servicioForm) { console.error("ERROR: servicioForm no encontrado"); return; }
+                servicioForm.reset();
+                clearModalValidationErrors();
+                showServicioModalFeedback('', 'clear');
+                modalServicioSaveButton.disabled = false;
+
+                if (isEditMode && servicioData) {
+                    modalServicioTitle.textContent = 'Editar Servicio';
+                    servicioIdInput.value = servicioData.id_servicio;
+                    servicioNombreInput.value = servicioData.nombre_servicio || '';
+                    modalServicioSaveButton.innerHTML = '<i class="fas fa-save mr-2"></i> Actualizar Servicio';
+                } else {
+                    modalServicioTitle.textContent = 'Añadir Nuevo Servicio';
+                    servicioIdInput.value = '';
+                    modalServicioSaveButton.innerHTML = '<i class="fas fa-plus mr-2"></i> Añadir Servicio';
+                }
+                if(modalServicioOverlay) modalServicioOverlay.classList.remove('hidden');
+                if(servicioModal) servicioModal.classList.remove('hidden');
+            }
+
+            function closeServicioModal() {
+                if(modalServicioOverlay) modalServicioOverlay.classList.add('hidden');
+                if(servicioModal) servicioModal.classList.add('hidden');
+                if(servicioForm) servicioForm.reset();
+            }
+
+            // --- Event Listeners ---
+            if(btnAddServicio) { btnAddServicio.addEventListener('click', () => openServicioModal(false)); }
+            if(modalServicioCloseButton) modalServicioCloseButton.addEventListener('click', closeServicioModal);
+            if(modalServicioCancelButton) modalServicioCancelButton.addEventListener('click', closeServicioModal);
+            if(modalServicioOverlay) modalServicioOverlay.addEventListener('click', closeServicioModal);
+
+            // --- Table Actions Handler ---
+            async function handleServicioTableActions(event) {
+                console.log("DEBUG: Clic en tabla servicios detectado.");
+                const targetButton = event.target.closest('button.action-button');
+                if (!targetButton) { console.log("DEBUG: Clic no fue en botón acción."); return; }
+
+                const servicioId = targetButton.dataset.id;
+                const nombreServicio = targetButton.dataset.nombre; // Obtener nombre del data attribute
+                if (!servicioId) { console.error("DEBUG: Botón sin data-id."); return; }
+                console.log(`DEBUG: Acción para servicio ID: ${servicioId}, Nombre: ${nombreServicio}`);
+
+                if (targetButton.classList.contains('btn-edit')) {
+                    console.log("DEBUG: Botón Editar presionado.");
+                    const servicioData = allServices.find(s => s.id_servicio == servicioId);
+                    if(servicioData) { openServicioModal(true, servicioData); }
+                    else { openServicioModal(true, { id_servicio: servicioId, nombre_servicio: nombreServicio }); console.warn("Datos completos no encontrados en caché."); }
+                } else if (targetButton.classList.contains('btn-toggle-active') || targetButton.classList.contains('btn-toggle-inactive')) {
+                    const estadoActual = targetButton.dataset.activo === '1';
+                    const accion = estadoActual ? 'desactivar' : 'activar';
+                    console.log(`DEBUG: Botón Toggle presionado (acción: ${accion}).`);
+                    // Usar nombreServicio en la confirmación
+                    if (confirm(`¿Está seguro que desea ${accion} el servicio "${nombreServicio}"?`)) {
+                        toggleServicioActivo(servicioId);
+                    }
+                } else if (targetButton.classList.contains('btn-delete')) {
+                     console.log("DEBUG: Botón Eliminar presionado.");
+                     // Usar nombreServicio en la confirmación
+                     if (confirm(`¿Está seguro que desea ELIMINAR el servicio "${nombreServicio}"? Esta acción no se puede deshacer y podría fallar si el servicio está en uso.`)) {
+                        eliminarServicio(servicioId);
+                    }
+                } else {
+                    console.log("DEBUG: Botón no reconocido:", targetButton.classList);
+                }
+            }
+            // Adjuntar listener al tbody usando delegación
+            if(tablaServiciosBody) {
+                console.log("DEBUG: Añadiendo listener a tablaServiciosBody");
+                tablaServiciosBody.addEventListener('click', handleServicioTableActions);
+            } else {
+                console.error("ERROR: No se encontró tablaServiciosBody");
+            }
+
+
+            // --- Form Submit Handler (Añadir/Editar Servicio) ---
+            if(servicioForm) {
+                console.log("DEBUG: Añadiendo listener de submit a servicioForm");
+                servicioForm.addEventListener('submit', async (event) => {
+                    console.log("DEBUG: Submit event capturado en servicioForm!");
+                    event.preventDefault();
+                    clearModalValidationErrors();
+                    showServicioModalFeedback('', 'clear');
+
+                    let formValid = true;
+                    if (!servicioNombreInput.value.trim()) {
+                        servicioNombreInput.classList.add('is-invalid', 'border-red-500');
+                        const errorSpan = servicioNombreInput.parentElement.querySelector('.error-message');
+                        if(errorSpan) errorSpan.classList.remove('hidden');
+                        formValid = false;
+                    }
+
+                    if (!formValid) {
+                        showServicioModalFeedback('El nombre del servicio es requerido.', 'error');
+                        return;
+                    }
+
+                    modalServicioSaveButton.disabled = true;
+                    const feedbackMsg = editMode ? 'Actualizando servicio...' : 'Añadiendo servicio...';
+                    showServicioModalFeedback(feedbackMsg, 'loading');
+
+                    const servicioData = { nombre_servicio: servicioNombreInput.value };
+                    const servicioId = servicioIdInput.value;
+                    const apiUrl = editMode ? `http://localhost:3000/api/servicios/${servicioId}` : 'http://localhost:3000/api/servicios';
+                    const apiMethod = editMode ? 'PUT' : 'POST';
+
+                    console.log(`DEBUG: Enviando ${apiMethod} a ${apiUrl}`, servicioData);
+
+                    try {
+                        const response = await fetch(apiUrl, {
+                            method: apiMethod,
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(servicioData)
+                        });
+                        const result = await response.json();
+                        console.log("DEBUG: Respuesta del backend:", response.status, result);
+
+                        if (response.ok && result.success) {
+                            showServicioModalFeedback(result.message || `Servicio ${editMode ? 'actualizado' : 'añadido'} exitosamente.`, 'success');
+                            setTimeout(() => {
+                                closeServicioModal();
+                                cargarServicios();
+                                showActionFeedback(`Servicio ${editMode ? 'actualizado' : 'añadido'} correctamente.`, 'success');
+                            }, 1000);
+                        } else {
+                            showServicioModalFeedback(result.message || `Error al ${editMode ? 'actualizar' : 'añadir'} el servicio.`, 'error');
+                            modalServicioSaveButton.disabled = false;
+                        }
+                    } catch (error) {
+                        console.error(`DEBUG: Error de red al ${editMode ? 'actualizar' : 'añadir'} servicio:`, error);
+                        showServicioModalFeedback('Error de conexión al guardar.', 'error');
+                        modalServicioSaveButton.disabled = false;
+                    }
+                });
+            } else { console.error("ERROR: No se encontró servicioForm"); }
+
+             // --- Toggle Service Active State Function ---
+             async function toggleServicioActivo(servicioId) {
+                 showActionFeedback('Cambiando estado...', 'loading');
+                 try {
+                     const response = await fetch(`http://localhost:3000/api/servicios/${servicioId}/toggle`, {
+                         method: 'PATCH',
+                         headers: { 'Content-Type': 'application/json' }
+                     });
+                     const result = await response.json();
+                     if (response.ok && result.success) {
+                         showActionFeedback(result.message || 'Estado del servicio cambiado.', 'success');
+                         cargarServicios();
+                     } else {
+                         showActionFeedback(result.message || 'Error al cambiar el estado del servicio.', 'error');
+                     }
+                 } catch (error) {
+                     console.error("Error de red al cambiar estado:", error);
+                     showActionFeedback('Error de conexión.', 'error');
+                 }
+             }
+
+             // --- Delete Service Function ---
+             async function eliminarServicio(servicioId) {
+                 showActionFeedback('Eliminando servicio...', 'loading');
+                 try {
+                     const response = await fetch(`http://localhost:3000/api/servicios/${servicioId}`, {
+                         method: 'DELETE'
+                     });
+                     const result = await response.json();
+                     if (response.ok && result.success) {
+                         showActionFeedback(result.message || 'Servicio eliminado correctamente.', 'success');
+                         cargarServicios();
+                     } else {
+                         showActionFeedback(result.message || 'Error al eliminar el servicio (podría estar en uso).', 'error');
+                     }
+                 } catch (error) {
+                     console.error("Error de red al eliminar servicio:", error);
+                     showActionFeedback('Error de conexión al eliminar.', 'error');
+                 }
+             }
+
+
+            // --- Logout Functionality ---
+            if(logoutButton) { logoutButton.addEventListener('click', () => { localStorage.removeItem('userData'); window.location.replace('login.html'); }); }
+
+            // --- Initialization ---
+            async function inicializarPagina() {
+                await cargarServicios(); // Esperar a que carguen los servicios
+                console.log("Página Gestión de Servicios cargada y lógica inicializada.");
+            }
+            inicializarPagina(); // Llamar a la función de inicialización
+
+        } ); // Cierre del DOMContentLoaded listener
+</script>
+
+</body>
+</html>

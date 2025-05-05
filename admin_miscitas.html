@@ -495,8 +495,7 @@
                                             const fechaParts = fechaISO.split('-');
                                             if (fechaParts.length === 3) {
                                                 // Usar Date.UTC para comparación precisa sin zona horaria
-                                                fechaCitaDate = new Date(Date.UTC(parseInt(fechaParts[0]), parseInt(fechaParts[1]) - 1, parseInt(fechaParts[2])));
-                                                if (!isNaN(fechaCitaDate.getTime())) {
+                                                fechaCitaDate = new Date(parseInt(fechaParts[0]), parseInt(fechaParts[1]) - 1, parseInt(fechaParts[2]));                                                if (!isNaN(fechaCitaDate.getTime())) {
                                                     fechaFormateada = formatDate(fechaISO); // Formato para mostrar
                                                     horaFormateada = formatTime(cita.hora_cita); // Formato para mostrar
                                                 } else { fechaCitaDate = null; } // Marcar como inválida si el parseo falla
@@ -655,6 +654,7 @@
                      if(editCitaForm) editCitaForm.reset();
                      editFeedbackMessageDiv.style.display = 'none';
                      editFeedbackMessageDiv.innerHTML = '';
+                     if(modalEditSaveButton) modalEditSaveButton.disabled = false;
                  }
 
                 // --- Table Actions Handler ---

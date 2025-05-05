@@ -217,7 +217,7 @@
     </div>
 
     <script>
-        // Asegurarse que currentUser esté definido en este scope si se declaró en head
+        // Asegurarse que currentUser esté definido
         if (!currentUser) {
              try {
                  const storedUserData = localStorage.getItem('userData');
@@ -297,10 +297,8 @@
                 function updateFormState(triggerSectionValidation = false) {
                     const isS1Valid = checkSectionValidity(fieldset1, triggerSectionValidation);
                     let isS2CompleteForS3 = false;
-
                     stepCircle1.classList.toggle('step-circle-complete', isS1Valid);
                     stepCircle1.classList.toggle('step-circle-active', !isS1Valid);
-
                     if (isS1Valid) {
                         if (fieldset2.disabled) { fieldset2.disabled = false; cargarVehiculosCliente(); }
                         stepCircle2.classList.add('step-circle-active'); stepCircle2.classList.remove('step-circle-complete');
@@ -311,7 +309,6 @@
                         fieldset2.disabled = true; stepCircle2.classList.remove('step-circle-active', 'step-circle-complete');
                         selectVehiculo.innerHTML = '<option value="" disabled selected>-- Ingrese teléfono del cliente primero --</option>'; clienteVehiculosCache = {};
                     }
-
                     const canEnableS3 = isS1Valid && isS2CompleteForS3;
                     if (canEnableS3) {
                         if (fieldset3.disabled) { fieldset3.disabled = false; if (serviciosDisponibles.length === 0) { cargarServiciosSelect(); } }
@@ -350,15 +347,16 @@
                     if (!selectServicio || serviciosDisponibles.length > 0) return;
                     selectServicio.innerHTML = '<option value="" disabled selected>-- Cargando servicios... --</option>';
                     try {
-                        const response = await fetch('http://localhost:3000/api/servicios');
+                        // Llamar a la API pidiendo solo los activos
+                        const response = await fetch('http://localhost:3000/api/servicios?activos=true');
                         const data = await response.json();
                         if (response.ok && data.success && data.servicios) {
                             serviciosDisponibles = data.servicios; selectServicio.innerHTML = '';
                             const defaultOption = document.createElement('option'); defaultOption.value = ""; defaultOption.textContent = "-- Seleccionar un servicio --"; defaultOption.disabled = true; defaultOption.selected = true; selectServicio.appendChild(defaultOption);
                             data.servicios.forEach(servicio => { const option = document.createElement('option'); option.value = servicio.id_servicio; option.textContent = servicio.nombre_servicio; selectServicio.appendChild(option); });
                             const otrosOption = document.createElement('option'); otrosOption.value = "otros"; otrosOption.textContent = "Otros servicios / Diagnóstico"; selectServicio.appendChild(otrosOption);
-                        } else { console.error("Error al cargar servicios:", data.message); selectServicio.innerHTML = '<option value="" disabled selected>-- Error al cargar --</option>'; }
-                    } catch (error) { console.error("Error de red al cargar servicios:", error); selectServicio.innerHTML = '<option value="" disabled selected>-- Error de red --</option>'; }
+                        } else { console.error("Error al cargar servicios activos:", data.message); selectServicio.innerHTML = '<option value="" disabled selected>-- Error al cargar --</option>'; }
+                    } catch (error) { console.error("Error de red al cargar servicios activos:", error); selectServicio.innerHTML = '<option value="" disabled selected>-- Error de red --</option>'; }
                 }
 
                 // --- Toggle Add New Vehicle Form ---
@@ -380,14 +378,13 @@
                     if (!element) { console.warn("Elemento de feedback no encontrado para:", message); return; }
                     element.innerHTML = `<div class="feedback-message ${bgColor} flex items-center justify-center border"><i class="${iconClass} mr-2"></i> ${message}</div>`;
                     element.style.display = 'block';
-                    // Ocultar automáticamente mensajes que NO sean de carga
                     if (type !== 'loading') {
                          setTimeout(() => {
                              if(element && element.style.display !== 'none' && element.innerHTML.includes(message)) {
                                  element.style.display = 'none';
                                  element.innerHTML = '';
                              }
-                         }, 5000); // Ocultar después de 5 seg
+                         }, 5000);
                     }
                 }
 
@@ -430,7 +427,7 @@
                             detalle_sintomas: document.getElementById('detalle-sintomas').value,
                             fecha_cita: dateInput.value,
                             hora_cita: timeInput.value,
-                            userId: localCurrentUser.id // Enviar ID del usuario
+                            userId: localCurrentUser.id
                         };
 
                         const apiUrl = 'http://localhost:3000/api/citas';
@@ -447,29 +444,24 @@
                             const result = await response.json();
 
                             if (response.ok && result.success) {
-                                // Mostrar mensaje de éxito
                                 showFeedback(result.message || 'Cita guardada exitosamente.', 'success', apiFeedbackMessageDiv);
                                 console.log("DEBUG: Mensaje de éxito mostrado.");
+                                submitButton.disabled = true; // Mantener deshabilitado antes de recargar
 
-                                // Deshabilitar botón permanentemente antes de recargar
-                                submitButton.disabled = true;
-
-                                // Esperar 2 segundos y LUEGO recargar la página
                                 setTimeout(() => {
                                     console.log("DEBUG: Recargando la página después de 2 segundos...");
-                                    window.location.reload(); // Recarga la página actual
-                                }, 2000); // Espera 2000ms (2 segundos)
+                                    window.location.reload();
+                                }, 2000);
 
                             } else {
                                 showFeedback(result.message || 'Error al guardar la cita. Verifique los datos.', 'error', apiFeedbackMessageDiv);
-                                submitButton.disabled = false; // Habilitar botón si hubo error
+                                submitButton.disabled = false; // Habilitar si hubo error
                             }
                         } catch (error) {
                             console.error("Error de red al enviar el formulario:", error);
                             showFeedback('Error de conexión con el servidor. Intente nuevamente.', 'error', apiFeedbackMessageDiv);
-                            submitButton.disabled = false; // Habilitar botón si hubo error de red
+                            submitButton.disabled = false; // Habilitar si hubo error de red
                         }
-                        // No re-habilitar el botón aquí en el 'finally' si hubo éxito
 
                     } else {
                         console.log("Formulario inválido.");
@@ -483,7 +475,7 @@
 
                 // --- Initialization ---
                 async function inicializarPagina() {
-                    await cargarServiciosSelect();
+                    await cargarServiciosSelect(); // Cargar servicios activos
                     if(dateInput) dateInput.setAttribute('min', todayString);
                     if(selectVehiculo) selectVehiculo.required = !isAddingNewVehicle;
                     updateFormState();
