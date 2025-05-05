@@ -14,10 +14,9 @@
             const storedUserData = localStorage.getItem('userData');
             if (!storedUserData) { console.log("No auth. Redirect login..."); window.location.replace('login.html'); throw new Error("Redirect login"); }
             currentUser = JSON.parse(storedUserData);
-            // Asegurarse que el ID del usuario también exista
             if (!currentUser || !currentUser.username || !currentUser.id) {
-                 console.error("Auth Check (Head): Invalid user data in storage (missing id or username).");
-                 localStorage.removeItem('userData'); // Limpiar datos inválidos
+                 console.error("Auth Check (Head): Invalid user data.");
+                 localStorage.removeItem('userData');
                  window.location.replace('login.html');
                  throw new Error("Invalid user data.");
              }
@@ -42,7 +41,7 @@
     </script>
 
     <style>
-        /* Styles (iguales que antes) */
+        /* Styles */
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
         .active-link { background-color: #e0f2fe; color: #0c4a6e; font-weight: 600; }
         .sidebar-link:hover { background-color: #f0f9ff; color: #0c4a6e; }
@@ -207,8 +206,7 @@
                              </div>
                          </fieldset>
                      </section>
-                     <div id="api-feedback-message" class="mt-4"></div>
-                     <div class="button-group">
+                     <div id="api-feedback-message" class="mt-4"></div> <div class="button-group">
                          <button type="submit" id="submit-button" class="btn btn-primary" disabled>
                              <i class="fas fa-calendar-check mr-2"></i> Guardar Cita Completa
                          </button>
@@ -219,406 +217,285 @@
     </div>
 
     <script>
-        // La variable 'currentUser' se define y verifica en el script del <head>
-
-        if(currentUser && currentUser.id) { // Asegurarse que currentUser y su ID existen
-            // --- DOM Elements ---
-            const form = document.getElementById('nuevo-servicio-form');
-            const fieldset1 = document.getElementById('fieldset-1');
-            const fieldset2 = document.getElementById('fieldset-2');
-            const fieldset3 = document.getElementById('fieldset-3');
-            const stepCircle1 = document.getElementById('step-circle-1');
-            const stepCircle2 = document.getElementById('step-circle-2');
-            const stepCircle3 = document.getElementById('step-circle-3');
-            const submitButton = document.getElementById('submit-button');
-            const selectVehiculo = document.getElementById('select-vehiculo-cliente');
-            const btnToggleAddVehicle = document.getElementById('btn-toggle-add-vehicle');
-            const addNewVehicleSection = document.getElementById('add-new-vehicle-section');
-            const isNewVehicleInput = document.getElementById('is_new_vehicle');
-            const saveVehicleFeedback = document.getElementById('save-vehicle-feedback');
-            const apiFeedbackMessageDiv = document.getElementById('api-feedback-message');
-            const emailInput = document.getElementById('email-cliente');
-            const phoneInput = document.getElementById('telefono-cliente');
-            const dateInput = document.getElementById('fecha-cita');
-            const timeInput = document.getElementById('hora-cita');
-            const newVehicleInputs = addNewVehicleSection.querySelectorAll('input[required]');
-            const logoutButton = document.getElementById('logout-button');
-            const pageTitle = document.querySelector('.page-content h1'); // Referencia al título H1 (aunque no se usa para editar aquí)
-            const selectServicio = document.getElementById('select-servicio'); // Referencia al select de servicios
-
-            // --- Variables Globales ---
-            let isAddingNewVehicle = false;
-            const todayString = new Date().toISOString().split('T')[0];
-            let clienteVehiculosCache = {};
-            let serviciosDisponibles = []; // Almacena los servicios cargados
-
-            // --- Funciones de Validación ---
-            function isValidEmail(email) { if (!email) return true; const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; return emailRegex.test(email); }
-            function isValidPhone(phone) { if (!phone) return false; const phoneRegex = /^[0-9]{7,15}$/; return phoneRegex.test(phone); }
-            function isValidDate(dateStr) { if (!dateStr) return false; return dateStr >= todayString; } // Solo fechas futuras o hoy para crear
-            function isValidTime(timeStr) { if (!timeStr) return false; return true; }
-            function isNotEmpty(value) { return value && value.trim() !== ''; }
-            function validateField(input, showErrors = false) {
-                const errorSpan = document.getElementById(`error-${input.id}`);
-                let isValid = true; let errorMessage = '';
-                const esCampoNuevoVehiculo = addNewVehicleSection.contains(input);
-                if (input.required && !isNotEmpty(input.value) && !(esCampoNuevoVehiculo && !isAddingNewVehicle)) {
-                     isValid = false; errorMessage = 'Este campo es obligatorio.';
-                }
-                else if (input.value) {
-                    let validationFn = null;
-                    if (input.id === 'email-cliente') validationFn = isValidEmail;
-                    else if (input.id === 'telefono-cliente') validationFn = isValidPhone;
-                    else if (input.id === 'fecha-cita') validationFn = isValidDate;
-                    else if (input.id === 'hora-cita') validationFn = isValidTime;
-                    else if (input.id === 'ano-vehiculo') validationFn = (v) => /^\d{4}$/.test(v) && v >= 1980 && v <= new Date().getFullYear() + 1;
-                    else if (input.id === 'kilometraje') validationFn = (v) => !isNaN(v) && Number(v) >= 0;
-                    else if (input.id === 'select-vehiculo-cliente' && !isAddingNewVehicle) validationFn = isNotEmpty;
-                    else if (input.id === 'select-servicio') validationFn = isNotEmpty;
-                    if (validationFn) isValid = validationFn(input.value);
-                }
-                 if (showErrors) { input.classList.toggle('is-invalid', !isValid); input.classList.add('interacted'); if (errorSpan) { errorSpan.textContent = errorMessage; errorSpan.style.display = isValid ? 'none' : 'block'; } }
-                 else { if (isValid && input.classList.contains('is-invalid')) { input.classList.remove('is-invalid'); if (errorSpan) errorSpan.style.display = 'none'; } }
-                 return isValid;
-            }
-            function checkSectionValidity(fieldset, showErrors = false) { const inputs = fieldset.querySelectorAll('input:not([type="hidden"]), select, textarea'); return Array.from(inputs).every(input => validateField(input, showErrors)); }
-            function checkNewVehicleSectionValidity(showErrors = false) { return Array.from(newVehicleInputs).every(input => validateField(input, showErrors)); }
-
-
-            // --- Update Form State ---
-            function updateFormState(triggerSectionValidation = false) {
-                const isS1Valid = checkSectionValidity(fieldset1, triggerSectionValidation);
-                let isS2CompleteForS3 = false;
-
-                stepCircle1.classList.toggle('step-circle-complete', isS1Valid);
-                stepCircle1.classList.toggle('step-circle-active', !isS1Valid);
-
-                if (isS1Valid) {
-                    if (fieldset2.disabled) {
-                        fieldset2.disabled = false;
-                        cargarVehiculosCliente(); // Cargar vehículos cuando S1 es válido
-                    }
-                    stepCircle2.classList.add('step-circle-active');
-                    stepCircle2.classList.remove('step-circle-complete');
-
-                    if (isAddingNewVehicle) {
-                        isS2CompleteForS3 = checkNewVehicleSectionValidity(triggerSectionValidation);
-                    } else {
-                        isS2CompleteForS3 = validateField(selectVehiculo, triggerSectionValidation);
-                    }
-                    stepCircle2.classList.toggle('step-circle-complete', isS2CompleteForS3);
-                    stepCircle2.classList.toggle('step-circle-active', isS1Valid && !isS2CompleteForS3);
-
-                } else {
-                    fieldset2.disabled = true;
-                    stepCircle2.classList.remove('step-circle-active', 'step-circle-complete');
-                    selectVehiculo.innerHTML = '<option value="" disabled selected>-- Ingrese teléfono del cliente primero --</option>';
-                    clienteVehiculosCache = {};
-                }
-
-                const canEnableS3 = isS1Valid && isS2CompleteForS3;
-
-                if (canEnableS3) {
-                    if (fieldset3.disabled) {
-                        fieldset3.disabled = false;
-                         // Cargar servicios si aún no se han cargado
-                         if (serviciosDisponibles.length === 0) {
-                            cargarServiciosSelect();
-                         }
-                    }
-                    stepCircle3.classList.add('step-circle-active');
-                    stepCircle3.classList.remove('step-circle-complete');
-                    const isS3Valid = checkSectionValidity(fieldset3, triggerSectionValidation);
-                    stepCircle3.classList.toggle('step-circle-complete', isS3Valid);
-                    stepCircle3.classList.toggle('step-circle-active', !isS3Valid);
-                    submitButton.disabled = !isS3Valid;
-                } else {
-                    fieldset3.disabled = true;
-                    stepCircle3.classList.remove('step-circle-active', 'step-circle-complete');
-                    submitButton.disabled = true;
-                }
-            }
-
-
-            // --- Load Client Vehicles ---
-            async function cargarVehiculosCliente() {
-                const telefono = phoneInput.value.trim();
-                if (!telefono || !isValidPhone(telefono)) {
-                    selectVehiculo.innerHTML = '<option value="" disabled selected>-- Teléfono de cliente inválido --</option>';
-                    return;
-                }
-                if (clienteVehiculosCache[telefono]) {
-                    console.log("Usando caché de vehículos para:", telefono);
-                    populateVehicleSelect(clienteVehiculosCache[telefono]);
-                    updateFormState(); // Actualizar estado después de poblar desde caché
-                    return;
-                }
-                console.log(`Fetching vehicles for phone: ${telefono}`);
-                selectVehiculo.disabled = true;
-                selectVehiculo.innerHTML = '<option value="" disabled selected>-- Cargando vehículos... --</option>';
-                try {
-                    const response = await fetch(`http://localhost:3000/api/vehiculos/cliente?telefono=${encodeURIComponent(telefono)}`);
-                    const result = await response.json();
-                    if (response.ok && result.success) {
-                        clienteVehiculosCache[telefono] = result.vehicles;
-                        populateVehicleSelect(result.vehicles);
-                    } else {
-                        console.warn("No se encontraron vehículos o hubo un error:", result.message);
-                        selectVehiculo.innerHTML = `<option value="" disabled selected>-- ${result.message || 'No se encontraron vehículos'} --</option>`;
-                        clienteVehiculosCache[telefono] = []; // Guardar array vacío en caché
-                    }
-                } catch (error) {
-                    console.error("Error fetching vehicles:", error);
-                    selectVehiculo.innerHTML = '<option value="" disabled selected>-- Error al cargar vehículos --</option>';
-                    showFeedback('Error al cargar vehículos del cliente.', 'error', saveVehicleFeedback);
-                     clienteVehiculosCache[telefono] = []; // Guardar array vacío en caché
-                } finally {
-                    selectVehiculo.disabled = false;
-                    updateFormState(true); // Validar y actualizar estado después de cargar
-                }
-            }
-
-            // --- Populate Vehicle Select ---
-            function populateVehicleSelect(vehicles) {
-                 selectVehiculo.innerHTML = '';
-                 const defaultOption = document.createElement('option');
-                 defaultOption.value = "";
-                 defaultOption.textContent = "-- Seleccione un vehículo --";
-                 defaultOption.disabled = true;
-                 defaultOption.selected = true;
-                 selectVehiculo.appendChild(defaultOption);
-
-                 if (vehicles && vehicles.length > 0) {
-                     vehicles.forEach(v => {
-                         const option = document.createElement('option');
-                         option.value = v.id_vehiculo;
-                         option.textContent = `${v.marca} ${v.modelo} (${v.placa || 'S/P'})`;
-                         selectVehiculo.appendChild(option);
-                     });
-                 }
+        // Asegurarse que currentUser esté definido en este scope si se declaró en head
+        if (!currentUser) {
+             try {
+                 const storedUserData = localStorage.getItem('userData');
+                 if (storedUserData) { currentUser = JSON.parse(storedUserData); }
+                 if (!currentUser || !currentUser.id) { throw new Error("User data missing ID"); }
+             } catch (e) {
+                 console.error("Error retrieving user data on DOMContentLoaded:", e);
+                 if (!window.location.pathname.endsWith('login.html')) { window.location.replace('login.html'); }
              }
+        }
 
-            // --- Load Services Select Options ---
-            async function cargarServiciosSelect() {
-                if (!selectServicio) return;
-                // Solo cargar si está vacío para evitar recargas innecesarias
-                if (selectServicio.options.length <= 1) {
+        document.addEventListener('DOMContentLoaded', () => {
+            let localCurrentUser = currentUser && currentUser.id ? currentUser : null;
+            let isAuthenticatedOnLoad = !!localCurrentUser;
+
+            if (isAuthenticatedOnLoad) {
+                // --- DOM Elements ---
+                const form = document.getElementById('nuevo-servicio-form');
+                const fieldset1 = document.getElementById('fieldset-1');
+                const fieldset2 = document.getElementById('fieldset-2');
+                const fieldset3 = document.getElementById('fieldset-3');
+                const stepCircle1 = document.getElementById('step-circle-1');
+                const stepCircle2 = document.getElementById('step-circle-2');
+                const stepCircle3 = document.getElementById('step-circle-3');
+                const submitButton = document.getElementById('submit-button');
+                const selectVehiculo = document.getElementById('select-vehiculo-cliente');
+                const btnToggleAddVehicle = document.getElementById('btn-toggle-add-vehicle');
+                const addNewVehicleSection = document.getElementById('add-new-vehicle-section');
+                const isNewVehicleInput = document.getElementById('is_new_vehicle');
+                const saveVehicleFeedback = document.getElementById('save-vehicle-feedback');
+                const apiFeedbackMessageDiv = document.getElementById('api-feedback-message');
+                const emailInput = document.getElementById('email-cliente');
+                const phoneInput = document.getElementById('telefono-cliente');
+                const dateInput = document.getElementById('fecha-cita');
+                const timeInput = document.getElementById('hora-cita');
+                const newVehicleInputs = addNewVehicleSection.querySelectorAll('input[required]');
+                const logoutButton = document.getElementById('logout-button');
+                const selectServicio = document.getElementById('select-servicio');
+
+                // --- Variables Globales ---
+                let isAddingNewVehicle = false;
+                const todayString = new Date().toISOString().split('T')[0];
+                let clienteVehiculosCache = {};
+                let serviciosDisponibles = [];
+
+                // --- Funciones de Validación ---
+                function isValidEmail(email) { if (!email) return true; const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; return emailRegex.test(email); }
+                function isValidPhone(phone) { if (!phone) return false; const phoneRegex = /^[0-9]{7,15}$/; return phoneRegex.test(phone); }
+                function isValidDate(dateStr) { if (!dateStr) return false; return dateStr >= todayString; }
+                function isValidTime(timeStr) { if (!timeStr) return false; return true; }
+                function isNotEmpty(value) { return value && value.trim() !== ''; }
+                function validateField(input, showErrors = false) {
+                    const errorSpan = document.getElementById(`error-${input.id}`);
+                    let isValid = true; let errorMessage = '';
+                    const esCampoNuevoVehiculo = addNewVehicleSection.contains(input);
+                    if (input.required && !isNotEmpty(input.value) && !(esCampoNuevoVehiculo && !isAddingNewVehicle)) { isValid = false; errorMessage = 'Este campo es obligatorio.'; }
+                    else if (input.value) {
+                        let validationFn = null;
+                        if (input.id === 'email-cliente') validationFn = isValidEmail;
+                        else if (input.id === 'telefono-cliente') validationFn = isValidPhone;
+                        else if (input.id === 'fecha-cita') validationFn = isValidDate;
+                        else if (input.id === 'hora-cita') validationFn = isValidTime;
+                        else if (input.id === 'ano-vehiculo') validationFn = (v) => /^\d{4}$/.test(v) && v >= 1980 && v <= new Date().getFullYear() + 1;
+                        else if (input.id === 'kilometraje') validationFn = (v) => !isNaN(v) && Number(v) >= 0;
+                        else if (input.id === 'select-vehiculo-cliente' && !isAddingNewVehicle) validationFn = isNotEmpty;
+                        else if (input.id === 'select-servicio') validationFn = isNotEmpty;
+                        if (validationFn) isValid = validationFn(input.value);
+                    }
+                     if (showErrors) { input.classList.toggle('is-invalid', !isValid); input.classList.add('interacted'); if (errorSpan) { errorSpan.textContent = errorMessage; errorSpan.style.display = isValid ? 'none' : 'block'; } }
+                     else { if (isValid && input.classList.contains('is-invalid')) { input.classList.remove('is-invalid'); if (errorSpan) errorSpan.style.display = 'none'; } }
+                     return isValid;
+                }
+                function checkSectionValidity(fieldset, showErrors = false) { const inputs = fieldset.querySelectorAll('input:not([type="hidden"]), select, textarea'); return Array.from(inputs).every(input => validateField(input, showErrors)); }
+                function checkNewVehicleSectionValidity(showErrors = false) { return Array.from(newVehicleInputs).every(input => validateField(input, showErrors)); }
+
+                // --- Update Form State ---
+                function updateFormState(triggerSectionValidation = false) {
+                    const isS1Valid = checkSectionValidity(fieldset1, triggerSectionValidation);
+                    let isS2CompleteForS3 = false;
+
+                    stepCircle1.classList.toggle('step-circle-complete', isS1Valid);
+                    stepCircle1.classList.toggle('step-circle-active', !isS1Valid);
+
+                    if (isS1Valid) {
+                        if (fieldset2.disabled) { fieldset2.disabled = false; cargarVehiculosCliente(); }
+                        stepCircle2.classList.add('step-circle-active'); stepCircle2.classList.remove('step-circle-complete');
+                        if (isAddingNewVehicle) { isS2CompleteForS3 = checkNewVehicleSectionValidity(triggerSectionValidation); }
+                        else { isS2CompleteForS3 = validateField(selectVehiculo, triggerSectionValidation); }
+                        stepCircle2.classList.toggle('step-circle-complete', isS2CompleteForS3); stepCircle2.classList.toggle('step-circle-active', isS1Valid && !isS2CompleteForS3);
+                    } else {
+                        fieldset2.disabled = true; stepCircle2.classList.remove('step-circle-active', 'step-circle-complete');
+                        selectVehiculo.innerHTML = '<option value="" disabled selected>-- Ingrese teléfono del cliente primero --</option>'; clienteVehiculosCache = {};
+                    }
+
+                    const canEnableS3 = isS1Valid && isS2CompleteForS3;
+                    if (canEnableS3) {
+                        if (fieldset3.disabled) { fieldset3.disabled = false; if (serviciosDisponibles.length === 0) { cargarServiciosSelect(); } }
+                        stepCircle3.classList.add('step-circle-active'); stepCircle3.classList.remove('step-circle-complete');
+                        const isS3Valid = checkSectionValidity(fieldset3, triggerSectionValidation);
+                        stepCircle3.classList.toggle('step-circle-complete', isS3Valid); stepCircle3.classList.toggle('step-circle-active', !isS3Valid);
+                        submitButton.disabled = !isS3Valid;
+                    } else {
+                        fieldset3.disabled = true; stepCircle3.classList.remove('step-circle-active', 'step-circle-complete'); submitButton.disabled = true;
+                    }
+                }
+
+                // --- Load Client Vehicles ---
+                async function cargarVehiculosCliente() {
+                    const telefono = phoneInput.value.trim();
+                    if (!telefono || !isValidPhone(telefono)) { selectVehiculo.innerHTML = '<option value="" disabled selected>-- Teléfono de cliente inválido --</option>'; return; }
+                    if (clienteVehiculosCache[telefono]) { populateVehicleSelect(clienteVehiculosCache[telefono]); updateFormState(); return; }
+                    selectVehiculo.disabled = true; selectVehiculo.innerHTML = '<option value="" disabled selected>-- Cargando vehículos... --</option>';
+                    try {
+                        const response = await fetch(`http://localhost:3000/api/vehiculos/cliente?telefono=${encodeURIComponent(telefono)}`);
+                        const result = await response.json();
+                        if (response.ok && result.success) { clienteVehiculosCache[telefono] = result.vehicles; populateVehicleSelect(result.vehicles); }
+                        else { selectVehiculo.innerHTML = `<option value="" disabled selected>-- ${result.message || 'No se encontraron vehículos'} --</option>`; clienteVehiculosCache[telefono] = []; }
+                    } catch (error) { console.error("Error fetching vehicles:", error); selectVehiculo.innerHTML = '<option value="" disabled selected>-- Error al cargar vehículos --</option>'; showFeedback('Error al cargar vehículos del cliente.', 'error', saveVehicleFeedback); clienteVehiculosCache[telefono] = []; }
+                    finally { selectVehiculo.disabled = false; updateFormState(true); }
+                }
+
+                // --- Populate Vehicle Select ---
+                function populateVehicleSelect(vehicles) {
+                     selectVehiculo.innerHTML = ''; const defaultOption = document.createElement('option'); defaultOption.value = ""; defaultOption.textContent = "-- Seleccione un vehículo --"; defaultOption.disabled = true; defaultOption.selected = true; selectVehiculo.appendChild(defaultOption);
+                     if (vehicles && vehicles.length > 0) { vehicles.forEach(v => { const option = document.createElement('option'); option.value = v.id_vehiculo; option.textContent = `${v.marca} ${v.modelo} (${v.placa || 'S/P'})`; selectVehiculo.appendChild(option); }); }
+                 }
+
+                // --- Load Services Select Options ---
+                async function cargarServiciosSelect() {
+                    if (!selectServicio || serviciosDisponibles.length > 0) return;
                     selectServicio.innerHTML = '<option value="" disabled selected>-- Cargando servicios... --</option>';
                     try {
                         const response = await fetch('http://localhost:3000/api/servicios');
                         const data = await response.json();
                         if (response.ok && data.success && data.servicios) {
-                            serviciosDisponibles = data.servicios;
-                            selectServicio.innerHTML = ''; // Limpiar antes de añadir
-                            const defaultOption = document.createElement('option');
-                            defaultOption.value = "";
-                            defaultOption.textContent = "-- Seleccionar un servicio --";
-                            defaultOption.disabled = true;
-                            defaultOption.selected = true;
-                            selectServicio.appendChild(defaultOption);
+                            serviciosDisponibles = data.servicios; selectServicio.innerHTML = '';
+                            const defaultOption = document.createElement('option'); defaultOption.value = ""; defaultOption.textContent = "-- Seleccionar un servicio --"; defaultOption.disabled = true; defaultOption.selected = true; selectServicio.appendChild(defaultOption);
+                            data.servicios.forEach(servicio => { const option = document.createElement('option'); option.value = servicio.id_servicio; option.textContent = servicio.nombre_servicio; selectServicio.appendChild(option); });
+                            const otrosOption = document.createElement('option'); otrosOption.value = "otros"; otrosOption.textContent = "Otros servicios / Diagnóstico"; selectServicio.appendChild(otrosOption);
+                        } else { console.error("Error al cargar servicios:", data.message); selectServicio.innerHTML = '<option value="" disabled selected>-- Error al cargar --</option>'; }
+                    } catch (error) { console.error("Error de red al cargar servicios:", error); selectServicio.innerHTML = '<option value="" disabled selected>-- Error de red --</option>'; }
+                }
 
-                            data.servicios.forEach(servicio => {
-                                const option = document.createElement('option');
-                                option.value = servicio.id_servicio;
-                                option.textContent = servicio.nombre_servicio;
-                                selectServicio.appendChild(option);
+                // --- Toggle Add New Vehicle Form ---
+                function toggleNewVehicleForm() {
+                    isAddingNewVehicle = !addNewVehicleSection.classList.toggle('hidden'); isNewVehicleInput.value = isAddingNewVehicle ? '1' : '0';
+                    saveVehicleFeedback.innerHTML = ''; apiFeedbackMessageDiv.innerHTML = '';
+                    const sectionToClear = isAddingNewVehicle ? selectVehiculo.closest('.col-span-full') : addNewVehicleSection;
+                    sectionToClear.querySelectorAll('.is-invalid').forEach(el => { el.classList.remove('is-invalid', 'interacted', 'submit-attempted'); const errorSpan = document.getElementById(`error-${el.id}`); if(errorSpan) errorSpan.style.display = 'none'; });
+                    document.getElementById('error-select-vehiculo-cliente').style.display = 'none';
+                    if (isAddingNewVehicle) { selectVehiculo.value = ""; selectVehiculo.required = false; newVehicleInputs.forEach(input => input.required = true); btnToggleAddVehicle.innerHTML = '<i class="fas fa-times mr-1"></i> Cancelar Añadir'; }
+                    else { selectVehiculo.required = true; newVehicleInputs.forEach(input => { input.required = false; input.value = ''; }); btnToggleAddVehicle.innerHTML = '<i class="fas fa-plus mr-1"></i> Añadir Nuevo Vehículo'; const telefono = phoneInput.value.trim(); if (clienteVehiculosCache[telefono]) { populateVehicleSelect(clienteVehiculosCache[telefono]); } else { selectVehiculo.innerHTML = '<option value="" disabled selected>-- Ingrese teléfono del cliente primero --</option>'; } }
+                    updateFormState(true);
+                }
+
+                 // --- Show Feedback ---
+                function showFeedback(message, type = 'info', element) {
+                    let bgColor, iconClass;
+                    switch (type) { case 'success': bgColor = 'feedback-success'; iconClass = 'fas fa-check-circle'; break; case 'error': bgColor = 'feedback-error'; iconClass = 'fas fa-exclamation-triangle'; break; case 'loading': bgColor = 'feedback-loading'; iconClass = 'fas fa-spinner fa-spin'; break; default: bgColor = 'bg-gray-100 text-gray-800 border-gray-300'; iconClass = 'fas fa-info-circle'; break; }
+                    if (!element) { console.warn("Elemento de feedback no encontrado para:", message); return; }
+                    element.innerHTML = `<div class="feedback-message ${bgColor} flex items-center justify-center border"><i class="${iconClass} mr-2"></i> ${message}</div>`;
+                    element.style.display = 'block';
+                    // Ocultar automáticamente mensajes que NO sean de carga
+                    if (type !== 'loading') {
+                         setTimeout(() => {
+                             if(element && element.style.display !== 'none' && element.innerHTML.includes(message)) {
+                                 element.style.display = 'none';
+                                 element.innerHTML = '';
+                             }
+                         }, 5000); // Ocultar después de 5 seg
+                    }
+                }
+
+                // --- Event Listeners ---
+                form.addEventListener('blur', (event) => { const target = event.target; if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') { target.classList.add('interacted'); validateField(target, true); updateFormState(); } }, true);
+                form.addEventListener('input', () => updateFormState(false));
+                form.addEventListener('change', () => updateFormState(false));
+                btnToggleAddVehicle.addEventListener('click', toggleNewVehicleForm);
+                phoneInput.addEventListener('blur', () => { if(isValidPhone(phoneInput.value)) { cargarVehiculosCliente(); } else { selectVehiculo.innerHTML = '<option value="" disabled selected>-- Teléfono de cliente inválido --</option>'; clienteVehiculosCache = {}; updateFormState(); } });
+
+                // --- Submit Handler ---
+                form.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+                    apiFeedbackMessageDiv.innerHTML = '';
+
+                    const isS1Valid = checkSectionValidity(fieldset1, true);
+                    let isS2Valid = false;
+                    if (isAddingNewVehicle) { isS2Valid = checkNewVehicleSectionValidity(true); }
+                    else { isS2Valid = checkSectionValidity(fieldset2, true); }
+                    const isS3Valid = checkSectionValidity(fieldset3, true);
+                    form.querySelectorAll('input, select, textarea').forEach(el => el.classList.add('submit-attempted'));
+
+                    if (isS1Valid && isS2Valid && isS3Valid) {
+                        submitButton.disabled = true;
+                        showFeedback('Guardando cita...', 'loading', apiFeedbackMessageDiv);
+
+                        const formData = {
+                            nombres_cliente: document.getElementById('nombres-cliente').value,
+                            apellidos_cliente: document.getElementById('apellidos-cliente').value,
+                            email_cliente: document.getElementById('email-cliente').value,
+                            telefono_cliente: document.getElementById('telefono-cliente').value,
+                            is_new_vehicle: isAddingNewVehicle ? '1' : '0',
+                            vehiculo_registrado_id: isAddingNewVehicle ? null : selectVehiculo.value,
+                            marca_vehiculo: isAddingNewVehicle ? document.getElementById('marca-vehiculo').value : null,
+                            modelo_vehiculo: isAddingNewVehicle ? document.getElementById('modelo-vehiculo').value : null,
+                            ano_vehiculo: isAddingNewVehicle ? document.getElementById('ano-vehiculo').value : null,
+                            placa_vehiculo: isAddingNewVehicle ? document.getElementById('placa-vehiculo').value : null,
+                            kilometraje: document.getElementById('kilometraje').value || null,
+                            servicio_id: document.getElementById('select-servicio').value,
+                            detalle_sintomas: document.getElementById('detalle-sintomas').value,
+                            fecha_cita: dateInput.value,
+                            hora_cita: timeInput.value,
+                            userId: localCurrentUser.id // Enviar ID del usuario
+                        };
+
+                        const apiUrl = 'http://localhost:3000/api/citas';
+                        const apiMethod = 'POST';
+
+                        console.log(`Enviando datos (${apiMethod}) a ${apiUrl}:`, formData);
+
+                        try {
+                            const response = await fetch(apiUrl, {
+                                method: apiMethod,
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(formData)
                             });
-                            // Añadir opción "Otros"
-                            const otrosOption = document.createElement('option');
-                            otrosOption.value = "otros";
-                            otrosOption.textContent = "Otros servicios / Diagnóstico";
-                            selectServicio.appendChild(otrosOption);
+                            const result = await response.json();
 
-                        } else {
-                            console.error("Error al cargar servicios:", data.message);
-                            selectServicio.innerHTML = '<option value="" disabled selected>-- Error al cargar --</option>';
+                            if (response.ok && result.success) {
+                                // Mostrar mensaje de éxito
+                                showFeedback(result.message || 'Cita guardada exitosamente.', 'success', apiFeedbackMessageDiv);
+                                console.log("DEBUG: Mensaje de éxito mostrado.");
+
+                                // Deshabilitar botón permanentemente antes de recargar
+                                submitButton.disabled = true;
+
+                                // Esperar 2 segundos y LUEGO recargar la página
+                                setTimeout(() => {
+                                    console.log("DEBUG: Recargando la página después de 2 segundos...");
+                                    window.location.reload(); // Recarga la página actual
+                                }, 2000); // Espera 2000ms (2 segundos)
+
+                            } else {
+                                showFeedback(result.message || 'Error al guardar la cita. Verifique los datos.', 'error', apiFeedbackMessageDiv);
+                                submitButton.disabled = false; // Habilitar botón si hubo error
+                            }
+                        } catch (error) {
+                            console.error("Error de red al enviar el formulario:", error);
+                            showFeedback('Error de conexión con el servidor. Intente nuevamente.', 'error', apiFeedbackMessageDiv);
+                            submitButton.disabled = false; // Habilitar botón si hubo error de red
                         }
-                    } catch (error) {
-                        console.error("Error de red al cargar servicios:", error);
-                        selectServicio.innerHTML = '<option value="" disabled selected>-- Error de red --</option>';
-                    }
-                }
-            }
+                        // No re-habilitar el botón aquí en el 'finally' si hubo éxito
 
-
-            // --- Toggle Add New Vehicle Form ---
-            function toggleNewVehicleForm() {
-                isAddingNewVehicle = !addNewVehicleSection.classList.toggle('hidden');
-                isNewVehicleInput.value = isAddingNewVehicle ? '1' : '0';
-                saveVehicleFeedback.innerHTML = '';
-                apiFeedbackMessageDiv.innerHTML = '';
-
-                // Limpiar errores de validación de la sección que se oculta/muestra
-                const sectionToClear = isAddingNewVehicle ? selectVehiculo.closest('.col-span-full') : addNewVehicleSection;
-                sectionToClear.querySelectorAll('.is-invalid').forEach(el => { el.classList.remove('is-invalid', 'interacted', 'submit-attempted'); const errorSpan = document.getElementById(`error-${el.id}`); if(errorSpan) errorSpan.style.display = 'none'; });
-                document.getElementById('error-select-vehiculo-cliente').style.display = 'none'; // Limpiar error del select específicamente
-
-                if (isAddingNewVehicle) {
-                    selectVehiculo.value = "";
-                    selectVehiculo.required = false;
-                    newVehicleInputs.forEach(input => input.required = true);
-                    btnToggleAddVehicle.innerHTML = '<i class="fas fa-times mr-1"></i> Cancelar Añadir';
-                } else {
-                    selectVehiculo.required = true;
-                    newVehicleInputs.forEach(input => { input.required = false; input.value = ''; }); // Limpiar campos de nuevo vehículo
-                    btnToggleAddVehicle.innerHTML = '<i class="fas fa-plus mr-1"></i> Añadir Nuevo Vehículo';
-                    // Repoblar vehículos si existen en caché
-                    const telefono = phoneInput.value.trim();
-                    if (clienteVehiculosCache[telefono]) {
-                         populateVehicleSelect(clienteVehiculosCache[telefono]);
                     } else {
-                         selectVehiculo.innerHTML = '<option value="" disabled selected>-- Ingrese teléfono del cliente primero --</option>';
+                        console.log("Formulario inválido.");
+                        showFeedback('Formulario inválido. Por favor corrija los errores marcados.', 'error', apiFeedbackMessageDiv);
+                        form.querySelector('.is-invalid')?.focus();
                     }
-                }
-                updateFormState(true); // Validar y actualizar estado
-            }
+                });
 
-             // --- Show Feedback ---
-            function showFeedback(message, type = 'info', element) {
-                let bgColor, textColor, borderColor, iconClass;
-                switch (type) {
-                    case 'success': bgColor = 'feedback-success'; iconClass = 'fas fa-check-circle'; break;
-                    case 'error': bgColor = 'feedback-error'; iconClass = 'fas fa-exclamation-triangle'; break;
-                    case 'loading': bgColor = 'feedback-loading'; iconClass = 'fas fa-spinner fa-spin'; break;
-                    default: bgColor = 'bg-gray-100 text-gray-800 border-gray-300'; iconClass = 'fas fa-info-circle'; break; // Clases Tailwind directas
-                }
-                 // Asegurar que el elemento exista
-                 if (!element) {
-                     console.warn("Elemento de feedback no encontrado para:", message);
-                     return;
-                 }
-                element.innerHTML = `<div class="feedback-message ${bgColor} flex items-center justify-center border"><i class="${iconClass} mr-2"></i> ${message}</div>`;
-                element.style.display = 'block';
-                if (type !== 'loading') {
-                     setTimeout(() => { if(element) element.style.display = 'none'; }, 5000);
-                }
-            }
+                // --- Logout Functionality ---
+                if(logoutButton) { logoutButton.addEventListener('click', () => { localStorage.removeItem('userData'); window.location.replace('login.html'); }); }
 
-            // --- Event Listeners ---
-            form.addEventListener('blur', (event) => {
-                const target = event.target;
-                if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') {
-                    target.classList.add('interacted');
-                    validateField(target, true);
+                // --- Initialization ---
+                async function inicializarPagina() {
+                    await cargarServiciosSelect();
+                    if(dateInput) dateInput.setAttribute('min', todayString);
+                    if(selectVehiculo) selectVehiculo.required = !isAddingNewVehicle;
                     updateFormState();
+                    console.log("Panel de administración (Nuevo Servicio) cargado y lógica inicializada.");
                 }
-            }, true);
+                inicializarPagina();
 
-            form.addEventListener('input', () => updateFormState(false));
-            form.addEventListener('change', () => updateFormState(false));
-            btnToggleAddVehicle.addEventListener('click', toggleNewVehicleForm);
-
-            phoneInput.addEventListener('blur', () => {
-                // Cargar vehículos solo si el teléfono es válido
-                if(isValidPhone(phoneInput.value)) {
-                    cargarVehiculosCliente(); // Esta función ya actualiza el estado al finalizar
-                } else {
-                    // Limpiar si el teléfono se vuelve inválido
-                    selectVehiculo.innerHTML = '<option value="" disabled selected>-- Teléfono de cliente inválido --</option>';
-                    clienteVehiculosCache = {};
-                    updateFormState();
-                }
-            });
-
-
-            // --- Submit Handler (Envia userId) ---
-            form.addEventListener('submit', async (event) => {
-                event.preventDefault();
-                apiFeedbackMessageDiv.innerHTML = '';
-
-                // Revalidar todo
-                const isS1Valid = checkSectionValidity(fieldset1, true);
-                let isS2Valid = false;
-                if (isAddingNewVehicle) { isS2Valid = checkNewVehicleSectionValidity(true); }
-                else { isS2Valid = checkSectionValidity(fieldset2, true); }
-                const isS3Valid = checkSectionValidity(fieldset3, true);
-                form.querySelectorAll('input, select, textarea').forEach(el => el.classList.add('submit-attempted'));
-
-                if (isS1Valid && isS2Valid && isS3Valid) {
-                    submitButton.disabled = true;
-                    showFeedback('Guardando cita...', 'loading', apiFeedbackMessageDiv);
-
-                    // Recopilar datos del formulario
-                    const formData = {
-                        nombres_cliente: document.getElementById('nombres-cliente').value,
-                        apellidos_cliente: document.getElementById('apellidos-cliente').value,
-                        email_cliente: document.getElementById('email-cliente').value,
-                        telefono_cliente: document.getElementById('telefono-cliente').value,
-                        is_new_vehicle: isAddingNewVehicle ? '1' : '0',
-                        vehiculo_registrado_id: isAddingNewVehicle ? null : selectVehiculo.value,
-                        marca_vehiculo: isAddingNewVehicle ? document.getElementById('marca-vehiculo').value : null,
-                        modelo_vehiculo: isAddingNewVehicle ? document.getElementById('modelo-vehiculo').value : null,
-                        ano_vehiculo: isAddingNewVehicle ? document.getElementById('ano-vehiculo').value : null,
-                        placa_vehiculo: isAddingNewVehicle ? document.getElementById('placa-vehiculo').value : null,
-                        kilometraje: document.getElementById('kilometraje').value || null,
-                        servicio_id: document.getElementById('select-servicio').value,
-                        detalle_sintomas: document.getElementById('detalle-sintomas').value,
-                        fecha_cita: dateInput.value,
-                        hora_cita: timeInput.value,
-                        userId: currentUser.id // <<--- AÑADIDO: Enviar ID del usuario actual
-                    };
-
-                    const apiUrl = 'http://localhost:3000/api/citas';
-                    const apiMethod = 'POST';
-
-                    console.log(`Enviando datos (${apiMethod}) a ${apiUrl}:`, formData);
-
-                    try {
-                        const response = await fetch(apiUrl, {
-                            method: apiMethod,
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(formData)
-                        });
-                        const result = await response.json();
-
-                        if (response.ok && result.success) {
-                            showFeedback(result.message || 'Cita guardada exitosamente.', 'success', apiFeedbackMessageDiv);
-                            form.reset(); // Limpiar formulario
-                            // Limpiar validaciones visuales
-                            form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid', 'interacted', 'submit-attempted'));
-                            form.querySelectorAll('.error-message').forEach(el => el.style.display = 'none');
-                            // Si se estaba añadiendo vehículo, ocultar esa sección
-                            if (isAddingNewVehicle) toggleNewVehicleForm();
-                            // Limpiar caché de vehículos para este cliente (forzar recarga la próxima vez)
-                            const telefono = phoneInput.value.trim(); // Obtener el teléfono antes del reset
-                            if (telefono) delete clienteVehiculosCache[telefono];
-                            // Resetear estado inicial del formulario (secciones deshabilitadas, etc.)
-                            updateFormState();
-
-                        } else {
-                            showFeedback(result.message || 'Error al guardar la cita. Verifique los datos.', 'error', apiFeedbackMessageDiv);
-                        }
-                    } catch (error) {
-                        console.error("Error de red al enviar el formulario:", error);
-                        showFeedback('Error de conexión con el servidor. Intente nuevamente.', 'error', apiFeedbackMessageDiv);
-                    } finally {
-                        submitButton.disabled = false; // Habilitar botón de nuevo
-                    }
-
-                } else {
-                    console.log("Formulario inválido.");
-                    showFeedback('Formulario inválido. Por favor corrija los errores marcados.', 'error', apiFeedbackMessageDiv);
-                    form.querySelector('.is-invalid')?.focus();
-                }
-            });
-
-            // --- Logout Functionality ---
-            if(logoutButton) { logoutButton.addEventListener('click', () => { localStorage.removeItem('userData'); window.location.replace('login.html'); }); }
-
-            // --- Inicialización ---
-            async function inicializarPagina() {
-                // Cargar servicios en el dropdown al iniciar
-                await cargarServiciosSelect();
-                // Configuración inicial para crear cita
-                if(dateInput) dateInput.setAttribute('min', todayString);
-                if(selectVehiculo) selectVehiculo.required = !isAddingNewVehicle;
-                updateFormState(); // Actualizar estado inicial
-                console.log("Panel de administración (Nuevo Servicio) cargado y lógica inicializada.");
+            } else {
+                 console.error("Authentication failed after DOM loaded. Redirecting.");
+                 if (!window.location.pathname.endsWith('login.html')) { window.location.replace('login.html'); }
             }
-
-            inicializarPagina(); // Llamar a la función de inicialización
-
-        } // Cierre del if(currentUser && currentUser.id)
+        });
     </script>
 </body>
 </html>

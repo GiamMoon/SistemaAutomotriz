@@ -92,6 +92,8 @@
          .error-message { color: #dc2626; font-size: 0.75rem; margin-top: 0.25rem; display: none; min-height: 1em; }
          input.is-invalid + .error-message, input.is-invalid ~ .error-message { display: block; }
          input.border-red-500 + .error-message { display: block; }
+         input.border-red-500 ~ .error-message { display: block; }
+
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -199,11 +201,11 @@
                      <div>
                          <label for="buscar-cliente-telefono">Buscar Cliente por Teléfono</label>
                          <div class="flex gap-2">
-                             <input type="tel" id="buscar-cliente-telefono" name="telefono_cliente_buscar" placeholder="Ingrese teléfono y busque" pattern="[0-9]{7,15}">
-                            <button type="button" id="btn-buscar-cliente" class="btn btn-primary text-sm whitespace-nowrap">Buscar</button>
+                            <input type="tel" id="buscar-cliente-telefono" name="telefono_cliente_buscar" placeholder="Ingrese teléfono y busque" pattern="[0-9]{7,15}"> <button type="button" id="btn-buscar-cliente" class="btn btn-primary text-sm whitespace-nowrap">Buscar</button>
                          </div>
                          <div id="cliente-encontrado-info" class="mt-2 text-xs bg-blue-50 p-2 rounded border border-blue-200 hidden">
-                             Cliente encontrado: <strong id="cliente-encontrado-nombre"></strong> (ID: <span id="cliente-encontrado-id"></span>)
+                             Cliente encontrado: <strong id="cliente-encontrado-nombre"></strong>
+                              <!-- (ID: <span id="cliente-encontrado-id"></span>) -->
                          </div>
                          <input type="hidden" id="cliente-asociado-id" name="id_cliente">
                          <span id="error-buscar-cliente" class="error-message">Debe buscar y encontrar un cliente válido.</span>
@@ -231,9 +233,7 @@
                 const storedUserData = localStorage.getItem('userData');
                 if (storedUserData) {
                     localCurrentUser = JSON.parse(storedUserData);
-                    if (!localCurrentUser || !localCurrentUser.username || !localCurrentUser.id) {
-                         throw new Error("Invalid user data format.");
-                    }
+                    if (!localCurrentUser || !localCurrentUser.username || !localCurrentUser.id) { throw new Error("Invalid user data format."); }
                     isAuthenticatedOnLoad = true;
                 } else { throw new Error("No user data found."); }
             } catch (error) {
@@ -264,8 +264,6 @@
                 const btnLimpiarBusqueda = document.getElementById('btn-limpiar-busqueda');
                 const btnAddVehiculo = document.getElementById('btn-add-vehiculo');
                 const actionFeedbackMessageDiv = document.getElementById('action-feedback-message');
-
-                // Modal Elements
                 const modalVehiculoOverlay = document.getElementById('modal-vehiculo-overlay');
                 const vehiculoModal = document.getElementById('vehiculo-modal');
                 const vehiculoForm = document.getElementById('vehiculo-form');
@@ -275,12 +273,10 @@
                 const modalVehiculoSaveButton = document.getElementById('modal-vehiculo-save-button');
                 const vehiculoFeedbackMessageDiv = document.getElementById('vehiculo-feedback-message');
                 const vehiculoIdInput = document.getElementById('vehiculo-id');
-                // Form Fields
                 const vehiculoPlacaInput = document.getElementById('vehiculo-placa');
                 const vehiculoMarcaInput = document.getElementById('vehiculo-marca');
                 const vehiculoModeloInput = document.getElementById('vehiculo-modelo');
                 const vehiculoAnoInput = document.getElementById('vehiculo-ano');
-                // Client Association Fields
                 const asociarClienteSection = document.getElementById('asociar-cliente-section');
                 const buscarClienteTelefonoInput = document.getElementById('buscar-cliente-telefono');
                 const btnBuscarCliente = document.getElementById('btn-buscar-cliente');
@@ -290,29 +286,28 @@
                 const clienteAsociadoIdInput = document.getElementById('cliente-asociado-id');
                 const errorBuscarClienteSpan = document.getElementById('error-buscar-cliente');
 
-
                 // --- Global Variables ---
                 let allVehicles = [];
                 let editMode = false;
 
                 // --- Feedback Functions ---
                 function showActionFeedback(message, type = 'info') {
-                     let bgColor, iconClass;
-                     const feedbackDiv = actionFeedbackMessageDiv;
-                     if (!feedbackDiv) return;
-                     switch (type) {
-                         case 'success': bgColor = 'feedback-success'; iconClass = 'fas fa-check-circle'; break;
-                         case 'error': bgColor = 'feedback-error'; iconClass = 'fas fa-exclamation-triangle'; break;
-                         case 'loading': bgColor = 'feedback-loading'; iconClass = 'fas fa-spinner fa-spin'; break;
-                         default: bgColor = 'bg-gray-100 border border-gray-300 text-gray-800'; iconClass = 'fas fa-info-circle'; break;
-                     }
-                     feedbackDiv.className = `feedback-message ${bgColor} flex items-center justify-center`;
-                     feedbackDiv.innerHTML = `<i class="${iconClass} mr-2"></i> ${message}`;
-                     feedbackDiv.style.display = 'block';
-                     if (type !== 'loading') {
-                         setTimeout(() => { if(feedbackDiv) feedbackDiv.style.display = 'none'; feedbackDiv.innerHTML = ''; }, 4000);
-                     }
-                 }
+                    let bgColor, iconClass;
+                    const feedbackDiv = actionFeedbackMessageDiv;
+                    if (!feedbackDiv) return;
+                    switch (type) {
+                        case 'success': bgColor = 'feedback-success'; iconClass = 'fas fa-check-circle'; break;
+                        case 'error': bgColor = 'feedback-error'; iconClass = 'fas fa-exclamation-triangle'; break;
+                        case 'loading': bgColor = 'feedback-loading'; iconClass = 'fas fa-spinner fa-spin'; break;
+                        default: bgColor = 'bg-gray-100 border border-gray-300 text-gray-800'; iconClass = 'fas fa-info-circle'; break;
+                    }
+                    feedbackDiv.className = `feedback-message ${bgColor} flex items-center justify-center`;
+                    feedbackDiv.innerHTML = `<i class="${iconClass} mr-2"></i> ${message}`;
+                    feedbackDiv.style.display = 'block';
+                    if (type !== 'loading') {
+                        setTimeout(() => { if(feedbackDiv) feedbackDiv.style.display = 'none'; feedbackDiv.innerHTML = ''; }, 4000);
+                    }
+                }
                 function showVehiculoModalFeedback(message, type = 'info') {
                      let bgColor, iconClass;
                      const feedbackDiv = vehiculoFeedbackMessageDiv;
@@ -399,6 +394,8 @@
                     showVehiculoModalFeedback('', 'clear');
                     clienteEncontradoInfoDiv.classList.add('hidden');
                     clienteAsociadoIdInput.value = '';
+                    // Habilitar el botón de guardar por defecto al abrir
+                    modalVehiculoSaveButton.disabled = false;
 
                     if (isEditMode && vehiculoData) {
                         modalVehiculoTitle.textContent = 'Editar Vehículo';
@@ -407,12 +404,12 @@
                         vehiculoMarcaInput.value = vehiculoData.marca_vehiculo || '';
                         vehiculoModeloInput.value = vehiculoData.modelo_vehiculo || '';
                         vehiculoAnoInput.value = vehiculoData.ano_vehiculo || '';
-                        asociarClienteSection.style.display = 'none';
+                        asociarClienteSection.style.display = 'none'; // Ocultar sección cliente
                         modalVehiculoSaveButton.innerHTML = '<i class="fas fa-save mr-2"></i> Actualizar Vehículo';
                     } else {
                         modalVehiculoTitle.textContent = 'Añadir Nuevo Vehículo';
                         vehiculoIdInput.value = '';
-                        asociarClienteSection.style.display = 'block';
+                        asociarClienteSection.style.display = 'block'; // Mostrar sección cliente
                         modalVehiculoSaveButton.innerHTML = '<i class="fas fa-plus mr-2"></i> Añadir Vehículo';
                     }
 
@@ -456,40 +453,20 @@
 
                          showVehiculoModalFeedback('Buscando cliente...', 'loading');
                          try {
-                             // Usamos la API existente, pero idealmente se usaría una API de clientes
-                             const response = await fetch(`http://localhost:3000/api/vehiculos/cliente?telefono=${encodeURIComponent(telefono)}`);
+                             const response = await fetch(`http://localhost:3000/api/clientes/buscar?telefono=${encodeURIComponent(telefono)}`);
                              const result = await response.json();
 
-                             // CORRECCIÓN: Necesitamos el ID del cliente, no solo si tiene vehículos
-                             // *** ESTA PARTE REQUIERE UNA API DE CLIENTES REAL O MODIFICAR LA EXISTENTE ***
-
-                             if (response.ok && result.success) {
-                                // Simulación: Suponemos que si la API responde OK, el cliente existe.
-                                // Necesitamos una forma REAL de obtener el ID y nombre del cliente.
-                                console.warn("Simulando búsqueda de cliente por teléfono. Implementar API real.");
-                                // const clienteResponse = await fetch(`/api/clientes?telefono=${telefono}`);
-                                // const clienteResult = await clienteResponse.json();
-
-                                // Simular respuesta exitosa (REEMPLAZAR CON LLAMADA REAL)
-                                const clienteSimulado = { success: true, cliente: { id_cliente: 123, nombre_cliente: "Cliente", apellido_cliente: "Encontrado" } };
-
-                                if (clienteSimulado.success && clienteSimulado.cliente) {
-                                     const cliente = clienteSimulado.cliente;
-                                     clienteEncontradoNombreSpan.textContent = `${cliente.nombre_cliente || ''} ${cliente.apellido_cliente || ''}`.trim();
-                                     clienteEncontradoIdSpan.textContent = cliente.id_cliente;
-                                     clienteAsociadoIdInput.value = cliente.id_cliente; // Guardar ID
-                                     clienteEncontradoInfoDiv.classList.remove('hidden'); // Mostrar info
-                                     showVehiculoModalFeedback('Cliente encontrado y asociado.', 'success');
-                                     errorBuscarClienteSpan.classList.add('hidden'); // Ocultar error si se encontró
-                                 } else {
-                                     showVehiculoModalFeedback('Cliente no encontrado con ese teléfono.', 'error');
-                                     errorBuscarClienteSpan.textContent = 'Cliente no encontrado.';
-                                     errorBuscarClienteSpan.classList.remove('hidden');
-                                 }
+                             if (response.ok && result.success && result.cliente) {
+                                 const cliente = result.cliente;
+                                 clienteEncontradoNombreSpan.textContent = `${cliente.nombre_cliente || ''} ${cliente.apellido_cliente || ''}`.trim();
+                                 //clienteEncontradoIdSpan.textContent = cliente.id_cliente;
+                                 clienteAsociadoIdInput.value = cliente.id_cliente; // Guardar ID
+                                 clienteEncontradoInfoDiv.classList.remove('hidden');
+                                 showVehiculoModalFeedback('Cliente encontrado y asociado.', 'success');
+                                 errorBuscarClienteSpan.classList.add('hidden');
                              } else {
-                                 // Si la API de vehículos falla (ej. 404 simulado si no hay cliente)
-                                 showVehiculoModalFeedback('Cliente no encontrado con ese teléfono.', 'error');
-                                 errorBuscarClienteSpan.textContent = 'Cliente no encontrado.';
+                                 showVehiculoModalFeedback(result.message || 'Cliente no encontrado.', 'error');
+                                 errorBuscarClienteSpan.textContent = result.message || 'Cliente no encontrado.';
                                  errorBuscarClienteSpan.classList.remove('hidden');
                              }
 
@@ -505,27 +482,36 @@
 
                 // --- Table Actions Handler (Editar/Eliminar) ---
                 function handleVehiculoTableActions(event) {
+                    console.log("DEBUG: Clic en tabla detectado.");
                     const targetButton = event.target.closest('button.action-button');
-                    if (!targetButton) return;
+                    if (!targetButton) {
+                        console.log("DEBUG: Clic no fue en un botón de acción.");
+                        return;
+                    }
 
                     const vehiculoId = targetButton.dataset.id;
+                    console.log(`DEBUG: Botón de acción clickeado para ID: ${vehiculoId}`);
 
                     if (targetButton.classList.contains('btn-edit')) {
+                        console.log("DEBUG: Botón Editar presionado.");
                         const vehiculoData = allVehicles.find(v => v.id_vehiculo == vehiculoId);
                         if (vehiculoData) {
+                            console.log("DEBUG: Datos encontrados para editar:", vehiculoData);
                             openVehiculoModal(true, vehiculoData);
                         } else {
-                            console.error("No se encontraron datos para editar vehículo ID:", vehiculoId);
+                            console.error("DEBUG: No se encontraron datos en caché para editar vehículo ID:", vehiculoId);
                             showActionFeedback('Error al cargar datos para editar.', 'error');
                         }
                     } else if (targetButton.classList.contains('btn-delete')) {
+                        console.log("DEBUG: Botón Eliminar presionado.");
                         const placa = targetButton.dataset.placa;
-                        if (confirm(`¿Está seguro que desea eliminar el vehículo con placa ${placa}? Esta acción no se puede deshacer y podría fallar si tiene citas asociadas.`)) {
+                        if (confirm(`¿Está seguro que desea eliminar el vehículo con placa ${placa}?`)) {
                             eliminarVehiculo(vehiculoId);
                         }
+                    } else {
+                        console.log("DEBUG: Botón clickeado no es Editar ni Eliminar:", targetButton.classList);
                     }
                 }
-                // Asegurarse que el listener se añade correctamente
                 if(tablaVehiculosBody) {
                     console.log("DEBUG: Añadiendo listener a tablaVehiculosBody");
                     tablaVehiculosBody.addEventListener('click', handleVehiculoTableActions);
@@ -536,6 +522,7 @@
 
                 // --- Form Submit Handler (Añadir/Editar Vehículo) ---
                 if(vehiculoForm) {
+                    console.log("DEBUG: Añadiendo listener de submit a vehiculoForm");
                     vehiculoForm.addEventListener('submit', async (event) => {
                         console.log("DEBUG: Submit event capturado!");
                         event.preventDefault();
@@ -543,21 +530,11 @@
                         showVehiculoModalFeedback('', 'clear');
                         console.log("DEBUG: Validando formulario...");
 
-                        // Validaciones
                         let formValid = true;
-                        // Seleccionar solo los inputs visibles y requeridos dentro del form
-                        const requiredFields = vehiculoForm.querySelectorAll('[required]:not([type="hidden"])');
-
-                        requiredFields.forEach(field => {
-                            // Saltar validación de teléfono si estamos editando Y el campo es el de buscar cliente
-                            if (editMode && field.id === 'buscar-cliente-telefono') {
-                                console.log("DEBUG: Saltando validación de teléfono en modo edición.");
-                                return;
-                            }
-
+                        // Validar campos visibles requeridos
+                        vehiculoForm.querySelectorAll('[required]:not([type="hidden"])').forEach(field => {
                             if (!field.value.trim()) {
                                 field.classList.add('is-invalid', 'border-red-500');
-                                // Buscar el span de error asociado al input
                                 const errorSpan = field.parentElement.querySelector('.error-message');
                                 if(errorSpan) errorSpan.classList.remove('hidden');
                                 formValid = false;
@@ -566,6 +543,8 @@
                         });
 
                         // Validar asociación de cliente solo al añadir
+                         // AJUSTE: Log para ver el valor del ID del cliente asociado
+                         console.log("DEBUG: Valor de clienteAsociadoIdInput ANTES de validar:", `'${clienteAsociadoIdInput.value}'`);
                         if (!editMode && !clienteAsociadoIdInput.value) {
                             errorBuscarClienteSpan.classList.remove('hidden');
                             buscarClienteTelefonoInput.classList.add('is-invalid', 'border-red-500');
@@ -583,29 +562,75 @@
                             console.log("DEBUG: Validación fallida - Año inválido.");
                          }
 
-
                         if (!formValid) {
                             showVehiculoModalFeedback('Por favor, complete todos los campos requeridos correctamente.', 'error');
                             console.log("DEBUG: Formulario NO válido, deteniendo envío.");
-                            return;
+                            return; // Detener si el formulario no es válido
                         }
 
-                        console.log("DEBUG: Formulario VÁLIDO, preparando datos...");
+                        // Validación de Placa Duplicada (solo al añadir o si la placa cambió al editar)
+                        const placaInputVal = vehiculoPlacaInput.value.toUpperCase().trim();
+                        const vehiculoId = vehiculoIdInput.value;
+                        let placaCheckNeeded = false;
+
+                        if (!editMode) {
+                            placaCheckNeeded = true;
+                        } else {
+                            const vehiculoOriginal = allVehicles.find(v => v.id_vehiculo == vehiculoId);
+                            if (vehiculoOriginal && vehiculoOriginal.placa_vehiculo !== placaInputVal) {
+                                placaCheckNeeded = true;
+                                console.log("DEBUG: La placa cambió, se verificará duplicado.");
+                            } else {
+                                 console.log("DEBUG: La placa no cambió, no se verifica duplicado.");
+                            }
+                        }
+
+                        if (placaCheckNeeded) {
+                            console.log(`DEBUG: Verificando si la placa ${placaInputVal} ya existe...`);
+                            showVehiculoModalFeedback('Verificando placa...', 'loading');
+                            try {
+                                const checkPlacaResponse = await fetch(`http://localhost:3000/api/vehiculos?placa=${encodeURIComponent(placaInputVal)}`);
+                                const checkPlacaResult = await checkPlacaResponse.json();
+                                let placaDuplicada = false;
+                                if (checkPlacaResponse.ok && checkPlacaResult.success && checkPlacaResult.vehiculos.length > 0) {
+                                    if (editMode) {
+                                        if (checkPlacaResult.vehiculos.some(v => v.id_vehiculo != vehiculoId)) { placaDuplicada = true; }
+                                    } else { placaDuplicada = true; }
+                                }
+                                if (placaDuplicada) {
+                                    console.log("DEBUG: Placa duplicada encontrada.");
+                                    showVehiculoModalFeedback('Error: La placa ingresada ya está registrada en otro vehículo.', 'error');
+                                    vehiculoPlacaInput.classList.add('is-invalid', 'border-red-500');
+                                    const errorPlacaSpan = vehiculoPlacaInput.parentElement.querySelector('.error-message');
+                                    if(errorPlacaSpan) { errorPlacaSpan.textContent = 'Esta placa ya existe.'; errorPlacaSpan.classList.remove('hidden'); }
+                                    modalVehiculoSaveButton.disabled = false; // Habilitar botón de nuevo
+                                    return; // Detener envío
+                                }
+                                console.log("DEBUG: Placa disponible.");
+                                showVehiculoModalFeedback('', 'clear');
+                            } catch (error) {
+                                console.error("DEBUG: Error verificando placa:", error);
+                                showVehiculoModalFeedback('Error al verificar la placa. Intente de nuevo.', 'error');
+                                modalVehiculoSaveButton.disabled = false; // Habilitar botón de nuevo
+                                return; // Detener envío
+                            }
+                        }
+                        // --- FIN Validación Placa Duplicada ---
+
+                        console.log("DEBUG: Formulario VÁLIDO y placa OK, preparando datos...");
                         modalVehiculoSaveButton.disabled = true;
                         const feedbackMsg = editMode ? 'Actualizando vehículo...' : 'Añadiendo vehículo...';
                         showVehiculoModalFeedback(feedbackMsg, 'loading');
 
                         const vehiculoData = {
-                            placa_vehiculo: vehiculoPlacaInput.value.toUpperCase(),
+                            placa_vehiculo: placaInputVal,
                             marca_vehiculo: vehiculoMarcaInput.value,
                             modelo_vehiculo: vehiculoModeloInput.value,
                             ano_vehiculo: vehiculoAnoInput.value,
-                            // Solo enviar id_cliente al crear
                             id_cliente: editMode ? undefined : clienteAsociadoIdInput.value
                         };
                         if (vehiculoData.id_cliente === undefined) delete vehiculoData.id_cliente;
 
-                        const vehiculoId = vehiculoIdInput.value;
                         const apiUrl = editMode ? `http://localhost:3000/api/vehiculos/${vehiculoId}` : 'http://localhost:3000/api/vehiculos';
                         const apiMethod = editMode ? 'PUT' : 'POST';
 
