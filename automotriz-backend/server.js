@@ -12,6 +12,7 @@ const { body, validationResult, param, query } = require('express-validator');
 const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -23,12 +24,16 @@ app.use(
         contentSecurityPolicy: {
             directives: {
                 ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-                "default-src": ["'self'"],
-                "script-src": ["'self'", "https://cdn.tailwindcss.com"],
-                "style-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "'unsafe-inline'"],
-                "font-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.gstatic.com"],
-                "img-src": ["'self'", `http://localhost:${port}`, process.env.RENDER_EXTERNAL_URL, "https://*.onrender.com", "https://placehold.co", "https://sistemaautomotriz.onrender.com", "data:"],
-                "connect-src": ["'self'", process.env.RENDER_EXTERNAL_URL, "https://*.onrender.com", "http://localhost:3000", "https://sistemaautomotriz.onrender.com", "http://127.0.0.1:5500"], 
+                "default-src": ["'self'"], // Permite recursos del mismo origen por defecto
+                "script-src": ["'self'", "https://cdn.tailwindcss.com"], // Scripts del mismo origen y Tailwind CDN
+                "style-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "'unsafe-inline'"], // Estilos: mismo origen, FontAwesome, Google Fonts, y estilos en línea
+                "font-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.gstatic.com", "data:"], // Fuentes: mismo origen, FontAwesome, Google Fonts, y data URIs
+                "img-src": ["'self'", `http://localhost:${port}`, process.env.RENDER_EXTERNAL_URL, "https://*.onrender.com", "https://placehold.co", "data:"], // Imágenes: mismo origen, localhost, URL de Render, placehold.co, data URIs
+                "connect-src": ["'self'", process.env.RENDER_EXTERNAL_URL, "https://*.onrender.com", "http://localhost:3000", "http://127.0.0.1:5500"], // Conexiones XHR/fetch
+                "frame-ancestors": ["'self'"], // Evita clickjacking
+                "form-action": ["'self'"], // Permite que los formularios solo envíen al mismo origen
+                "object-src": ["'none'"], // No permitir plugins como Flash
+                "upgrade-insecure-requests": [], // Actualiza HTTP a HTTPS si es posible
             },
         },
     })
@@ -38,15 +43,22 @@ const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
 const allowedOrigins = [
     'http://localhost:3000',
     'http://127.0.0.1:5500',
-    'https://sistemaautomotriz.onrender.com',
 ];
 if (RENDER_EXTERNAL_URL) {
     allowedOrigins.push(RENDER_EXTERNAL_URL);
+    console.log(`RENDER_EXTERNAL_URL (${RENDER_EXTERNAL_URL}) añadida a allowedOrigins.`);
+} else if (process.env.NODE_ENV === 'production') {
+    console.warn('ADVERTENCIA: RENDER_EXTERNAL_URL no está definida en el entorno de producción. CORS podría no funcionar correctamente para el dominio de producción.');
 }
+console.log('Orígenes CORS permitidos:', allowedOrigins);
+
 
 app.use(cors({
     origin: function (origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (process.env.NODE_ENV !== 'production' && !origin) { // Permitir solicitudes sin origen en desarrollo (ej. Postman)
+            return callback(null, true);
+        }
+        if (allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             console.error(`Error CORS: Origen no permitido: ${origin}`);
@@ -55,9 +67,31 @@ app.use(cors({
     },
     credentials: true
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// --- Configuración de Limitación de Tasa (Rate Limiting) ---
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Demasiadas solicitudes desde esta IP, por favor intente de nuevo después de 15 minutos.' }
+});
+app.use('/api/', apiLimiter);
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { success: false, message: 'Demasiados intentos de autenticación desde esta IP, por favor intente de nuevo después de 15 minutos.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.use('/api/login', authLimiter);
+app.use('/api/register', authLimiter);
+
 
 // --- Servir archivos estáticos ---
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -84,9 +118,11 @@ if (caPathFromEnv) {
     } else {
         console.warn(`ADVERTENCIA: Certificado CA especificado en DB_SSL_CA_PATH (${absoluteCaPath}) no encontrado.`);
     }
-} else {
-    console.warn(`ADVERTENCIA: DB_SSL_CA_PATH no está definido en .env. Para Aiven, esto es usualmente necesario.`);
+} else if (process.env.NODE_ENV === 'production' && process.env.DB_HOST && process.env.DB_HOST.includes('aivencloud.com')) {
+    // En producción con Aiven, el CA es usualmente necesario si no está en el trust store del sistema.
+    console.warn(`ADVERTENCIA: DB_SSL_CA_PATH no está definido en .env. Para Aiven en producción, esto es usualmente necesario.`);
 }
+
 
 const dbPool = mysql.createPool({
     connectionLimit: 10,
@@ -111,7 +147,7 @@ async function testDbConnection() {
         if (error.code === 'ER_ACCESS_DENIED_ERROR') {
              console.error('VERIFICA LAS CREDENCIALES EN TU ARCHIVO .env');
         }
-        if (error.message.includes('SSL') || error.message.includes('certificate') || error.code === 'HANDSHAKE_SSL_ERROR') {
+        if (error.message.includes('SSL') || error.message.includes('certificate') || error.code === 'HANDSHAKE_SSL_ERROR' || error.code === 'SELF_SIGNED_CERT_IN_CHAIN') {
             console.error('El error parece estar relacionado con la configuración SSL. Verifica el archivo CA (DB_SSL_CA_PATH en .env) y la configuración.');
         }
     } finally {
@@ -123,7 +159,7 @@ testDbConnection();
 const saltRounds = 10;
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-    console.error("ERROR CRÍTICO: Falta JWT_SECRET en las variables de entorno.");
+    console.error("ERROR CRÍTICO: Falta JWT_SECRET en las variables de entorno. La autenticación no funcionará.");
 }
 
 // --- Configuración de Multer ---
@@ -143,6 +179,7 @@ const fileFilter = (req, file, cb) => {
     else { cb(new Error('Tipo de archivo no permitido. Solo se aceptan imágenes.'), false); }
 };
 const upload = multer({ storage: storage, fileFilter: fileFilter, limits: { fileSize: 2 * 1024 * 1024 } });
+
 function handleMulterError(err, req, res, next) {
     if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') { return res.status(400).json({ success: false, message: 'El archivo es demasiado grande. Máximo 2MB.' }); }
@@ -156,6 +193,10 @@ function authenticateToken(req, res, next) {
     const token = req.cookies.accessToken;
     if (!token) {
         return res.status(401).json({ success: false, message: 'Acceso denegado. No autenticado.' });
+    }
+    if (!JWT_SECRET) { // Verificar si JWT_SECRET está definido
+        console.error("Error de autenticación: JWT_SECRET no está configurado en el servidor.");
+        return res.status(500).json({ success: false, message: "Error de configuración del servidor." });
     }
     jwt.verify(token, JWT_SECRET, (err, userPayload) => {
         if (err) {
@@ -205,6 +246,7 @@ app.post('/api/login', [
         const user = rows[0];
         const isPasswordMatch = await bcrypt.compare(password, user.password_hash);
         if (isPasswordMatch) {
+            if (!JWT_SECRET) { throw new Error("JWT_SECRET no está configurado."); }
             const userPayload = { id: user.id_usuario, username: user.username, rol: user.rol };
             const accessToken = jwt.sign(userPayload, JWT_SECRET, { expiresIn: '1h' });
             res.cookie('accessToken', accessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', maxAge: 60 * 60 * 1000 });
@@ -368,6 +410,8 @@ app.get('/api/citas', authenticateToken, [
             LEFT JOIN Usuarios uc ON c.creado_por_id = uc.id_usuario LEFT JOIN Usuarios um ON c.modificado_por_id = um.id_usuario
         `;
         const queryParams = []; let conditions = [];
+        // MEJORA: Si el rol no es Administrador, filtrar por req.user.id (creado_por_id o cliente_id si aplica)
+        // Ejemplo: if (req.user.rol !== 'Administrador') { conditions.push('c.creado_por_id = ?'); queryParams.push(req.user.id); }
         if (fecha_inicio) { conditions.push('c.fecha_cita >= ?'); queryParams.push(fecha_inicio); }
         if (fecha_fin) { conditions.push('c.fecha_cita <= ?'); queryParams.push(fecha_fin); }
         if (conditions.length > 0) { sqlQuery += ' WHERE ' + conditions.join(' AND '); }
@@ -396,7 +440,7 @@ app.get('/api/citas/:id', authenticateToken, [
             WHERE c.id_cita = ?`;
         const [citas] = await connection.query(sqlQuery, [citaId]);
         if (citas.length === 0) { return res.status(404).json({ success: false, message: 'Cita no encontrada.' }); }
-        // MEJORA: Aquí podrías verificar si req.user.id es el cliente de la cita o un admin
+        // MEJORA: Verificar si req.user.id es el cliente de la cita o un admin antes de devolver
         return res.status(200).json({ success: true, cita: citas[0] });
     } catch (error) { console.error(`Error fetching appointment ID: ${citaId}:`, error); return res.status(500).json({ success: false, message: 'Error al obtener los detalles de la cita.' }); }
     finally { if (connection) { connection.release(); } }
@@ -742,10 +786,11 @@ app.get('/api/clientes/count', authenticateToken, adminOnly, async (req, res) =>
 // --- INICIO DEL SERVIDOR ---
 app.listen(port, () => {
     console.log(`Servidor backend escuchando en el puerto ${port}`);
+    const RENDER_EXTERNAL_URL_LOG = process.env.RENDER_EXTERNAL_URL; // Para el log
     if (process.env.NODE_ENV !== 'production' && port) {
          console.log(`Accede a tu aplicación frontend en http://localhost:${port}/login.html`);
-    } else if (RENDER_EXTERNAL_URL) {
-        console.log(`Accede a tu aplicación en ${RENDER_EXTERNAL_URL}/login.html`);
+    } else if (RENDER_EXTERNAL_URL_LOG) {
+        console.log(`Accede a tu aplicación en ${RENDER_EXTERNAL_URL_LOG}/login.html`);
     }
 });
 
