@@ -1,6 +1,4 @@
-// Importar dotenv y cargar variables de entorno desde .env
-require('dotenv').config(); // <<< ¡MUY IMPORTANTE! Debe estar al principio
-
+require('dotenv').config();
 const express = require('express');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
@@ -8,38 +6,54 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-// Requerir express-validator
 const { body, validationResult, param, query } = require('express-validator');
-// const helmet = require('helmet'); // <<< MANTENER COMENTADO POR AHORA
+const helmet = require('helmet'); 
 
 const app = express();
-// Usar el puerto desde las variables de entorno, o 3000 por defecto
 const port = process.env.PORT || 3000;
 
-// app.use(helmet()); // Desactivado por ahora
+app.use(
+    helmet({
+        crossOriginResourcePolicy: { policy: "cross-origin" }, // Permite que recursos (como imágenes) sean cargados por otros orígenes
+        contentSecurityPolicy: { // Configuración básica de CSP, puedes ajustarla más adelante
+            directives: {
+                ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+                "default-src": ["'self'"], // Por defecto, solo permite recursos del mismo origen
+                "script-src": ["'self'", "https://cdn.tailwindcss.com"], // Permite scripts del mismo origen y Tailwind
+                "style-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "'unsafe-inline'"], // Permite estilos del mismo origen, FontAwesome, Google Fonts, y estilos en línea
+                "font-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.gstatic.com"], // Permite fuentes
+                "img-src": ["'self'", "http://localhost:3000", "https://placehold.co", "data:"], // Permite imágenes del mismo origen, tu backend, placehold.co y data URIs
+                // Considera añadir 'connect-src': ["'self'"] si tus scripts solo hacen fetch a tu propia API.
+            },
+        },
+    })
+);
 
 // Configuración de CORS global
-app.use(cors()); // Puedes hacerlo más específico después: app.use(cors({ origin: 'http://localhost:3000' }));
+// Si sirves el frontend desde el mismo origen (localhost:3000), puedes ser más restrictivo.
+// Si tu frontend está en 127.0.0.1:5500, necesitas permitir ese origen.
+app.use(cors({ origin: ['http://localhost:3000', 'http://127.0.0.1:5500'] }));
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // --- Servir archivos estáticos ---
-
-// 1. Servir archivos de la carpeta /uploads (imágenes)
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir);
 }
+// Con la CSP img-src configurada, no se necesitan cabeceras especiales aquí para CORS/CORP
+// si las imágenes se sirven desde el mismo origen o desde un origen permitido en la CSP.
 app.use('/uploads', express.static(uploadsDir));
 console.log(`Sirviendo archivos de uploads desde: ${uploadsDir}`);
 
-// 2. Servir archivos del Frontend (si sigues con este enfoque)
+// Servir archivos del Frontend (si sigues con este enfoque de servir todo desde el backend)
 const frontendDir = path.join(__dirname, '..');
 console.log(`Intentando servir archivos frontend desde: ${frontendDir}`);
 app.use('/css', express.static(path.join(frontendDir, 'css')));
 app.use('/js', express.static(path.join(frontendDir, 'js')));
-app.use(express.static(frontendDir));
+app.use(express.static(frontendDir)); // Sirve HTML desde la raíz del frontend
 
 // --- Pool de Base de Datos (usando variables de entorno) ---
 const dbPool = mysql.createPool({
@@ -50,7 +64,7 @@ const dbPool = mysql.createPool({
     database: process.env.DB_DATABASE,
     waitForConnections: true,
     queueLimit: 0,
-    dateStrings: true // Importante para cómo se recuperan las fechas
+    dateStrings: true
 });
 
 async function testDbConnection() {
@@ -106,10 +120,13 @@ app.get('/', (req, res) => {
 
 // --- RUTAS API (Citas, Auth, Servicios, Vehículos, Clientes, etc.) ---
 // =====================================================================
-// AHORA CON VALIDACIONES DE EXPRESS-VALIDATOR
+// CON VALIDACIONES DE EXPRESS-VALIDATOR
 // =====================================================================
 
-// --- RUTAS DE CITAS ---
+// (Aquí van todas tus rutas API como las tenías en la versión anterior,
+//  con las validaciones de express-validator)
+
+// Ejemplo de ruta (DEBES REEMPLAZAR ESTO CON TUS RUTAS REALES):
 app.post('/api/citas', [
     body('nombres_cliente').trim().notEmpty().withMessage('Nombres del cliente son requeridos.').isLength({ max: 100 }).escape(),
     body('apellidos_cliente').trim().notEmpty().withMessage('Apellidos del cliente son requeridos.').isLength({ max: 100 }).escape(),
@@ -124,7 +141,7 @@ app.post('/api/citas', [
     body('kilometraje').optional({ checkFalsy: true }).isInt({ min: 0 }).withMessage('Kilometraje inválido.'),
     body('servicio_id').notEmpty().withMessage('Servicio es requerido.').trim().escape(),
     body('detalle_sintomas').optional({ checkFalsy: true }).trim().isLength({ max: 1000 }).escape(),
-    body('fecha_cita').isISO8601().withMessage('Fecha de cita inválida. Debe ser YYYY-MM-DD.'), // SE ELIMINÓ .toDate()
+    body('fecha_cita').isISO8601().withMessage('Fecha de cita inválida. Debe ser YYYY-MM-DD.'),
     body('hora_cita').matches(/^([01]\d|2[0-3]):([0-5]\d)$/).withMessage('Hora de cita inválida (HH:MM).'),
     body('userId').isInt({ gt: 0 }).withMessage('ID de usuario creador inválido.')
 ], async (req, res) => {
@@ -133,8 +150,6 @@ app.post('/api/citas', [
         console.log("Errores de validación en POST /api/citas:", errors.array());
         return res.status(400).json({ success: false, errors: errors.array() });
     }
-
-    console.log('Datos recibidos para nueva cita (validados):', req.body);
     const {
         nombres_cliente, apellidos_cliente, email_cliente, telefono_cliente,
         vehiculo_registrado_id, is_new_vehicle, marca_vehiculo, modelo_vehiculo,
@@ -142,21 +157,16 @@ app.post('/api/citas', [
         detalle_sintomas, fecha_cita, hora_cita,
         userId
     } = req.body;
-
     if (is_new_vehicle === '1' && (!marca_vehiculo || !modelo_vehiculo || !ano_vehiculo || !placa_vehiculo)) return res.status(400).json({ success: false, message: 'Faltan campos obligatorios para registrar el nuevo vehículo.' });
     if (is_new_vehicle !== '1' && !vehiculo_registrado_id) return res.status(400).json({ success: false, message: 'Debe seleccionar un vehículo existente o añadir uno nuevo.' });
-
     let connection;
     try {
         connection = await dbPool.getConnection();
         await connection.beginTransaction();
-
         let clienteId;
         const [clientesExistentes] = await connection.query( 'SELECT id_cliente FROM Clientes WHERE telefono = ?', [telefono_cliente] );
         if (clientesExistentes.length > 0) { clienteId = clientesExistentes[0].id_cliente; }
         else { const [clienteResult] = await connection.query( 'INSERT INTO Clientes (nombres, apellidos, email, telefono) VALUES (?, ?, ?, ?)', [nombres_cliente, apellidos_cliente, email_cliente || null, telefono_cliente] ); clienteId = clienteResult.insertId; }
-
-
         let vehiculoId;
          if (is_new_vehicle === '1') {
              const [placaExistente] = await connection.query('SELECT id_vehiculo FROM Vehiculos WHERE placa = ?', [placa_vehiculo]);
@@ -168,51 +178,35 @@ app.post('/api/citas', [
              const [vehiculoValido] = await connection.query( 'SELECT id_vehiculo FROM Vehiculos WHERE id_vehiculo = ? AND id_cliente = ?', [vehiculoId, clienteId] );
              if (vehiculoValido.length === 0) { await connection.rollback(); return res.status(400).json({ success: false, message: 'Error: El vehículo seleccionado no pertenece al cliente indicado.' }); }
          }
-
-
         let servicioParaGuardar = null;
         if (servicio_id && servicio_id !== 'otros' && !isNaN(parseInt(servicio_id))) { servicioParaGuardar = `Servicio ID: ${parseInt(servicio_id)}`; }
         else if (servicio_id === 'otros') { servicioParaGuardar = "Otros servicios / Diagnóstico"; }
         else { await connection.rollback(); return res.status(400).json({ success: false, message: 'Debe seleccionar un servicio válido.' }); }
-
         const estadoInicial = 'Pendiente';
         const sqlInsertCita = `INSERT INTO Citas (id_cliente, id_vehiculo, fecha_cita, hora_cita, kilometraje, servicio_principal, motivo_detalle, estado, creado_por_id, fecha_creacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
         const insertParams = [ clienteId, vehiculoId, fecha_cita, hora_cita, kilometraje || null, servicioParaGuardar, detalle_sintomas || null, estadoInicial, userId ];
         const [citaResult] = await connection.query(sqlInsertCita, insertParams);
         const citaId = citaResult.insertId;
-        console.log(`Cita insertada con ID: ${citaId}, estado: ${estadoInicial}, creada por User ID: ${userId}`);
-
         await connection.commit();
-        return res.status(201).json({
-            success: true,
-            message: 'Cita registrada exitosamente.',
-            citaId: citaId
-        });
-
+        return res.status(201).json({ success: true, message: 'Cita registrada exitosamente.', citaId: citaId });
     } catch (error) {
         console.error('Error durante la transacción de base de datos (/api/citas):', error);
         if (connection) await connection.rollback();
-
-        if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
-             return res.status(409).json({ success: false, message: `Error: El valor para un campo único ya existe.` });
-        } else if (error.code === 'ER_NO_REFERENCED_ROW_2') {
-             return res.status(400).json({ success: false, message: 'Error: El cliente o el vehículo seleccionado no es válido o no existe.' });
-        } else {
-             return res.status(500).json({ success: false, message: 'Error interno al registrar la cita.' });
-        }
-    } finally {
-        if (connection) { connection.release(); }
-    }
+        if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) { return res.status(409).json({ success: false, message: `Error: El valor para un campo único ya existe.` }); }
+        else if (error.code === 'ER_NO_REFERENCED_ROW_2') { return res.status(400).json({ success: false, message: 'Error: El cliente o el vehículo seleccionado no es válido o no existe.' }); }
+        else { return res.status(500).json({ success: false, message: 'Error interno al registrar la cita.' }); }
+    } finally { if (connection) { connection.release(); } }
 });
+
+// --- COPIA AQUÍ EL RESTO DE TUS RUTAS API (GET /api/citas, GET /api/citas/:id, etc HASTA /api/clientes/count) ---
+// --- ASEGÚRATE DE QUE CADA UNA TENGA SU BLOQUE DE VALIDACIÓN Y EL MANEJO DE validationResult ---
 
 app.get('/api/citas', [
     query('fecha_inicio').optional().isISO8601().toDate().withMessage('Fecha de inicio inválida.'),
     query('fecha_fin').optional().isISO8601().toDate().withMessage('Fecha de fin inválida.')
 ], async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ success: false, errors: errors.array() });
-    }
+    if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const { fecha_inicio, fecha_fin } = req.query;
     let connection;
     try {
@@ -239,9 +233,7 @@ app.get('/api/citas/:id', [
     param('id').isInt({ gt: 0 }).withMessage('ID de cita inválido.')
 ], async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ success: false, errors: errors.array() });
-    }
+    if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const citaId = req.params.id;
     let connection;
     try {
@@ -262,7 +254,7 @@ app.get('/api/citas/:id', [
 
 app.put('/api/citas/:id', [
     param('id').isInt({ gt: 0 }).withMessage('ID de cita inválido.'),
-    body('fecha_cita').isISO8601().withMessage('Fecha de cita inválida. Debe ser YYYY-MM-DD.'), // Corrección aquí también
+    body('fecha_cita').isISO8601().withMessage('Fecha de cita inválida. Debe ser YYYY-MM-DD.'),
     body('hora_cita').matches(/^([01]\d|2[0-3]):([0-5]\d)$/).withMessage('Hora de cita inválida (HH:MM).'),
     body('kilometraje').optional({ checkFalsy: true }).isInt({ min: 0 }).withMessage('Kilometraje inválido.'),
     body('servicio_id').notEmpty().withMessage('Servicio es requerido.').trim().escape(),
@@ -270,9 +262,7 @@ app.put('/api/citas/:id', [
     body('userId').isInt({ gt: 0 }).withMessage('ID de usuario modificador inválido.')
 ], async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ success: false, errors: errors.array() });
-    }
+    if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const citaId = req.params.id;
     const { fecha_cita, hora_cita, kilometraje, servicio_id, detalle_sintomas, userId } = req.body;
     let connection;
@@ -282,13 +272,11 @@ app.put('/api/citas/:id', [
         if (servicio_id && servicio_id !== 'otros' && !isNaN(parseInt(servicio_id))) { servicioParaGuardar = `Servicio ID: ${parseInt(servicio_id)}`; }
         else if (servicio_id === 'otros') { servicioParaGuardar = "Otros servicios / Diagnóstico"; }
         else { return res.status(400).json({ success: false, message: 'Debe seleccionar un servicio válido.' });}
-
         const sqlQuery = `UPDATE Citas SET fecha_cita = ?, hora_cita = ?, kilometraje = ?, servicio_principal = ?, motivo_detalle = ?, modificado_por_id = ?, fecha_modificacion = NOW() WHERE id_cita = ?`;
         const queryParams = [ fecha_cita, hora_cita, kilometraje || null, servicioParaGuardar, detalle_sintomas || null, userId, citaId ];
         const [result] = await connection.query(sqlQuery, queryParams);
-        if (result.affectedRows > 0 || result.changedRows > 0) {
-             return res.status(200).json({ success: true, message: 'Cita actualizada exitosamente.' });
-        } else { return res.status(404).json({ success: false, message: 'Cita no encontrada o sin cambios.' }); }
+        if (result.affectedRows > 0 || result.changedRows > 0) { return res.status(200).json({ success: true, message: 'Cita actualizada exitosamente.' }); }
+        else { return res.status(404).json({ success: false, message: 'Cita no encontrada o sin cambios.' }); }
     } catch (error) { console.error(`Error al actualizar cita ID: ${citaId}:`, error); return res.status(500).json({ success: false, message: 'Error interno al actualizar la cita.' }); }
     finally { if (connection) { connection.release(); } }
 });
@@ -335,34 +323,22 @@ app.post('/api/login', [
     body('password').notEmpty().withMessage('Contraseña es requerida.')
 ], async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ success: false, errors: errors.array() });
-    }
+    if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const { username, password } = req.body;
     let connection;
     try {
         connection = await dbPool.getConnection();
         const [rows] = await connection.query('SELECT id_usuario, username, password_hash, nombre_completo, rol, avatar_url FROM Usuarios WHERE username = ?', [username]);
-        if (rows.length === 0) {
-            return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' });
-        }
+        if (rows.length === 0) { return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' }); }
         const user = rows[0];
         const isPasswordMatch = await bcrypt.compare(password, user.password_hash);
         if (isPasswordMatch) {
             return res.status(200).json({
                 success: true,
                 message: 'Inicio de sesión exitoso.',
-                user: {
-                    id: user.id_usuario,
-                    username: user.username,
-                    nombre: user.nombre_completo,
-                    rol: user.rol,
-                    avatarUrl: user.avatar_url
-                }
+                user: { id: user.id_usuario, username: user.username, nombre: user.nombre_completo, rol: user.rol, avatarUrl: user.avatar_url }
             });
-        } else {
-            return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' });
-        }
+        } else { return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' }); }
     } catch (error) { console.error('Error durante el proceso de login:', error); return res.status(500).json({ success: false, message: 'Error interno del servidor durante el inicio de sesión.' }); }
     finally { if (connection) { connection.release(); } }
 });
@@ -373,35 +349,24 @@ app.post('/api/register', [
     body('nombre_completo').trim().notEmpty().withMessage('Nombre completo es requerido.').isLength({ max: 100 }).escape()
 ], async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ success: false, errors: errors.array() });
-    }
+    if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const { username, password, nombre_completo } = req.body;
     let connection;
     try {
         connection = await dbPool.getConnection();
         const [existingName] = await connection.query('SELECT id_usuario FROM Usuarios WHERE nombre_completo = ?', [nombre_completo]);
-        if (existingName.length > 0) {
-            return res.status(409).json({ success: false, message: 'Error: Ya existe un usuario registrado con ese nombre completo.' });
-        }
+        if (existingName.length > 0) { return res.status(409).json({ success: false, message: 'Error: Ya existe un usuario registrado con ese nombre completo.' }); }
         const [existingUsername] = await connection.query('SELECT id_usuario FROM Usuarios WHERE username = ?', [username]);
-        if (existingUsername.length > 0) {
-            return res.status(409).json({ success: false, message: 'Error: El nombre de usuario ya está en uso.' });
-        }
-
+        if (existingUsername.length > 0) { return res.status(409).json({ success: false, message: 'Error: El nombre de usuario ya está en uso.' }); }
         const hashedPassword = await bcrypt.hash(password, saltRounds);
         const rolPorDefecto = 'Usuario';
         const [result] = await connection.query('INSERT INTO Usuarios (username, password_hash, nombre_completo, rol) VALUES (?, ?, ?, ?)', [username, hashedPassword, nombre_completo, rolPorDefecto]);
         return res.status(201).json({ success: true, message: 'Usuario registrado exitosamente.' });
     } catch (error) {
         console.error('Error durante el proceso de registro:', error);
-        if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
-            return res.status(409).json({ success: false, message: `Error: Conflicto de datos duplicados.` });
-        }
+        if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) { return res.status(409).json({ success: false, message: `Error: Conflicto de datos duplicados.` }); }
         return res.status(500).json({ success: false, message: 'Error interno del servidor durante el registro.' });
-    } finally {
-        if (connection) { connection.release(); }
-    }
+    } finally { if (connection) { connection.release(); } }
 });
 
 app.post('/api/users/:id/avatar', [
@@ -409,52 +374,27 @@ app.post('/api/users/:id/avatar', [
 ], upload.single('avatar'), handleMulterError, async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        if (req.file && req.file.path) {
-            fs.unlink(req.file.path, (err) => {
-                if (err) console.error("Error borrando archivo subido por ID inválido (validation):", err);
-            });
-        }
+        if (req.file && req.file.path) { fs.unlink(req.file.path, (err) => { if (err) console.error("Error borrando archivo subido por ID inválido (validation):", err); }); }
         return res.status(400).json({ success: false, errors: errors.array() });
     }
     const userId = req.params.id;
-    console.log(`Petición POST /api/users/${userId}/avatar recibida.`);
-
-    if (!req.file) {
-        return res.status(400).json({ success: false, message: 'No se subió ningún archivo de imagen.' });
-    }
-
+    if (!req.file) { return res.status(400).json({ success: false, message: 'No se subió ningún archivo de imagen.' }); }
     const avatarRelativePath = path.join('uploads', 'avatars', req.file.filename).replace(/\\/g, '/');
     const avatarUrl = `${req.protocol}://${req.get('host')}/${avatarRelativePath}`;
-    console.log(`Archivo subido: ${req.file.path}, URL pública generada: ${avatarUrl}`);
-
     let connection;
     try {
         connection = await dbPool.getConnection();
         const [result] = await connection.query('UPDATE Usuarios SET avatar_url = ? WHERE id_usuario = ?', [avatarUrl, userId]);
-
-        if (result.affectedRows > 0) {
-            console.log(`Avatar actualizado para usuario ID: ${userId}`);
-            return res.status(200).json({
-                success: true,
-                message: 'Foto de perfil actualizada exitosamente.',
-                avatarUrl: avatarUrl
-            });
-        } else {
-            fs.unlink(req.file.path, (err) => {
-                if (err) console.error("Error borrando archivo subido por usuario no encontrado:", err);
-            });
-            console.log(`Usuario ID: ${userId} no encontrado para actualizar avatar.`);
+        if (result.affectedRows > 0) { return res.status(200).json({ success: true, message: 'Foto de perfil actualizada exitosamente.', avatarUrl: avatarUrl }); }
+        else {
+            fs.unlink(req.file.path, (err) => { if (err) console.error("Error borrando archivo subido por usuario no encontrado:", err); });
             return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
         }
     } catch (error) {
         console.error(`Error al actualizar avatar para usuario ID: ${userId}:`, error);
-        fs.unlink(req.file.path, (err) => {
-            if (err) console.error("Error borrando archivo subido por error de DB:", err);
-        });
+        fs.unlink(req.file.path, (err) => { if (err) console.error("Error borrando archivo subido por error de DB:", err); });
         return res.status(500).json({ success: false, message: 'Error interno al actualizar la foto de perfil.' });
-    } finally {
-        if (connection) { connection.release(); }
-    }
+    } finally { if (connection) { connection.release(); } }
 });
 
 // --- RUTAS DE SERVICIOS ---
@@ -463,7 +403,6 @@ app.get('/api/servicios', [
 ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
-
     const soloActivos = req.query.activos === 'true';
     let connection;
     try {
@@ -534,17 +473,11 @@ app.patch('/api/servicios/:id/toggle', [
     try {
         connection = await dbPool.getConnection();
         const [currentService] = await connection.query('SELECT activo FROM Servicios WHERE id_servicio = ?', [servicioId]);
-        if (currentService.length === 0) {
-            return res.status(404).json({ success: false, message: 'Servicio no encontrado.' });
-        }
+        if (currentService.length === 0) { return res.status(404).json({ success: false, message: 'Servicio no encontrado.' }); }
         const nuevoEstadoLogico = !Boolean(currentService[0].activo);
         const [result] = await connection.query( 'UPDATE Servicios SET activo = ? WHERE id_servicio = ?', [nuevoEstadoLogico, servicioId] );
-
-        if (result.affectedRows > 0) {
-            return res.status(200).json({ success: true, message: `Estado del servicio cambiado a ${nuevoEstadoLogico ? 'Activo' : 'Inactivo'}.`, nuevoEstado: nuevoEstadoLogico });
-        } else {
-            return res.status(404).json({ success: false, message: 'Servicio no encontrado (o sin cambios).' });
-        }
+        if (result.affectedRows > 0) { return res.status(200).json({ success: true, message: `Estado del servicio cambiado a ${nuevoEstadoLogico ? 'Activo' : 'Inactivo'}.`, nuevoEstado: nuevoEstadoLogico }); }
+        else { return res.status(404).json({ success: false, message: 'Servicio no encontrado (o sin cambios).' }); }
     } catch (error) { console.error(`Error al cambiar estado del servicio ID: ${servicioId}:`, error); return res.status(500).json({ success: false, message: 'Error interno al cambiar estado del servicio.' }); }
     finally { if (connection) connection.release(); }
 });
@@ -561,9 +494,7 @@ app.delete('/api/servicios/:id', [
         await connection.beginTransaction();
         const servicioIdString = `Servicio ID: ${servicioId}`;
         const [citasAsociadas] = await connection.query( 'SELECT COUNT(*) as count FROM Citas WHERE servicio_principal = ? OR servicio_principal = ?', [servicioIdString, servicioId.toString()] );
-
         if (citasAsociadas[0].count > 0) { await connection.rollback(); return res.status(409).json({ success: false, message: 'Error: No se puede eliminar el servicio porque está asociado a una o más citas.' }); }
-
         const [result] = await connection.query('DELETE FROM Servicios WHERE id_servicio = ?', [servicioId]);
         await connection.commit();
         if (result.affectedRows > 0) { return res.status(200).json({ success: true, message: 'Servicio eliminado exitosamente.' }); }
@@ -654,10 +585,8 @@ app.post('/api/vehiculos', [
         await connection.beginTransaction();
         const [clienteExiste] = await connection.query('SELECT id_cliente FROM Clientes WHERE id_cliente = ?', [id_cliente]);
         if (clienteExiste.length === 0) { await connection.rollback(); return res.status(404).json({ success: false, message: 'Error: El cliente especificado no existe.' }); }
-
         const [placaExistente] = await connection.query('SELECT id_vehiculo FROM Vehiculos WHERE placa = ?', [placa_vehiculo]);
         if (placaExistente.length > 0) { await connection.rollback(); return res.status(409).json({ success: false, message: 'Error: La placa del vehículo ya está registrada.' }); }
-
         const sqlInsert = `INSERT INTO Vehiculos (id_cliente, marca, modelo, ano, placa) VALUES (?, ?, ?, ?, ?)`;
         const insertParams = [ id_cliente, marca_vehiculo, modelo_vehiculo, ano_vehiculo, placa_vehiculo ];
         const [result] = await connection.query(sqlInsert, insertParams);
@@ -688,7 +617,6 @@ app.put('/api/vehiculos/:id', [
         await connection.beginTransaction();
         const [placaExistente] = await connection.query( 'SELECT id_vehiculo FROM Vehiculos WHERE placa = ? AND id_vehiculo != ?', [placa_vehiculo, vehiculoId] );
         if (placaExistente.length > 0) { await connection.rollback(); return res.status(409).json({ success: false, message: 'Error: La nueva placa ya está registrada en otro vehículo.' }); }
-
         const sqlUpdate = `UPDATE Vehiculos SET placa = ?, marca = ?, modelo = ?, ano = ? WHERE id_vehiculo = ?`;
         const updateParams = [ placa_vehiculo, marca_vehiculo, modelo_vehiculo, ano_vehiculo, vehiculoId ];
         const [result] = await connection.query(sqlUpdate, updateParams);
@@ -715,7 +643,6 @@ app.delete('/api/vehiculos/:id', [
         await connection.beginTransaction();
         const [citasAsociadas] = await connection.query( 'SELECT COUNT(*) as count FROM Citas WHERE id_vehiculo = ?', [vehiculoId] );
         if (citasAsociadas[0].count > 0) { await connection.rollback(); return res.status(409).json({ success: false, message: 'Error: No se puede eliminar el vehículo porque tiene citas asociadas.' }); }
-
         const [result] = await connection.query('DELETE FROM Vehiculos WHERE id_vehiculo = ?', [vehiculoId]);
         await connection.commit();
         if (result.affectedRows > 0) { return res.status(200).json({ success: true, message: 'Vehículo eliminado exitosamente.' }); }
