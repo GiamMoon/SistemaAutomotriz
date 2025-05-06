@@ -5,6 +5,9 @@ const express = require('express');
 const mysql = require('mysql2/promise'); // Usar la versión promise
 const bcrypt = require('bcrypt');
 const cors = require('cors');
+const path = require('path'); // Necesario para manejar rutas de archivos
+const fs = require('fs'); // Necesario para crear carpetas si no existen
+const multer = require('multer'); // *** NUEVO: Para manejar subida de archivos ***
 
 // 2. Inicializar la aplicación Express
 const app = express();
@@ -15,6 +18,16 @@ app.use(cors()); // Habilitar CORS para permitir peticiones desde el frontend
 app.use(express.json()); // Para parsear cuerpos de petición JSON
 app.use(express.urlencoded({ extended: true })); // Para parsear cuerpos de petición URL-encoded
 
+// *** NUEVO: Servir archivos estáticos desde la carpeta 'uploads' ***
+// Esto permite que el navegador acceda a las imágenes subidas usando una URL como http://localhost:3000/uploads/avatars/nombre_archivo.jpg
+const uploadsDir = path.join(__dirname, 'uploads'); // Directorio base para subidas
+if (!fs.existsSync(uploadsDir)){ // Crear carpeta 'uploads' si no existe
+    fs.mkdirSync(uploadsDir);
+}
+app.use('/uploads', express.static(uploadsDir));
+console.log(`Sirviendo archivos estáticos desde: ${uploadsDir}`);
+// --- Fin Servir archivos estáticos ---
+
 // 4. Configuración de la Conexión a la Base de Datos
 const dbPool = mysql.createPool({
     connectionLimit: 10, // Número máximo de conexiones en el pool
@@ -24,8 +37,7 @@ const dbPool = mysql.createPool({
     database: 'servicio_automotriz', // Nombre de la base de datos
     waitForConnections: true, // Esperar si no hay conexiones disponibles
     queueLimit: 0, // Sin límite en la cola de espera
-    // Importante para devolver fechas como strings y no objetos Date
-    dateStrings: true
+    dateStrings: true // Importante para devolver fechas como strings
 });
 
 // 5. Probar la Conexión a la Base de Datos al iniciar
@@ -44,7 +56,45 @@ async function testDbConnection() {
 testDbConnection();
 
 // --- Configuración de Hashing ---
-const saltRounds = 10; // Factor de coste para bcrypt (más alto = más seguro pero más lento)
+const saltRounds = 10;
+
+// *** NUEVO: Configuración de Multer para subida de avatares ***
+const avatarUploadsDir = path.join(uploadsDir, 'avatars'); // Carpeta específica para avatares
+if (!fs.existsSync(avatarUploadsDir)){ // Crear carpeta 'avatars' si no existe
+    fs.mkdirSync(avatarUploadsDir);
+}
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, avatarUploadsDir); // Define la carpeta de destino
+    },
+    filename: function (req, file, cb) {
+        // Genera un nombre de archivo único: userId-timestamp.extension
+        const userId = req.params.id || 'unknown'; // Obtiene el ID del usuario de la ruta
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const extension = path.extname(file.originalname); // Obtiene la extensión original
+        cb(null, `user-${userId}-${uniqueSuffix}${extension}`);
+    }
+});
+
+// Filtro para aceptar solo imágenes
+const fileFilter = (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+        cb(null, true); // Aceptar archivo
+    } else {
+        cb(new Error('Tipo de archivo no permitido. Solo se aceptan imágenes.'), false); // Rechazar archivo
+    }
+};
+
+const upload = multer({
+    storage: storage,
+    fileFilter: fileFilter,
+    limits: {
+        fileSize: 2 * 1024 * 1024 // Límite de 2MB (ajusta según necesidad)
+    }
+});
+// --- Fin Configuración Multer ---
+
 
 // 6. Definir Rutas de la API
 
@@ -54,7 +104,7 @@ app.get('/', (req, res) => {
 });
 
 // --- Rutas API para CITAS ---
-
+// (Las rutas de citas existentes van aquí... sin cambios)
 // POST /api/citas - GUARDAR una NUEVA CITA
 app.post('/api/citas', async (req, res) => {
     console.log('Datos recibidos para nueva cita:', req.body);
@@ -207,7 +257,7 @@ app.put('/api/citas/:id', async (req, res) => {
         const queryParams = [ fecha_cita, hora_cita, kilometraje || null, servicioParaGuardar, detalle_sintomas || null, userId, citaId ];
         const [result] = await connection.query(sqlQuery, queryParams);
         if (result.affectedRows > 0) { return res.status(200).json({ success: true, message: 'Cita actualizada exitosamente.' }); }
-        else if (result.changedRows > 0) { return res.status(200).json({ success: true, message: 'No se realizaron cambios (datos iguales).' }); }
+        else if (result.changedRows > 0) { return res.status(200).json({ success: true, message: 'No se realizaron cambios (datos iguales).' }); } // Opcional: manejar caso sin cambios
         else { return res.status(404).json({ success: false, message: 'Cita no encontrada.' }); }
     } catch (error) { console.error(`Error al actualizar cita ID: ${citaId}:`, error); return res.status(500).json({ success: false, message: 'Error interno al actualizar la cita.' }); }
     finally { if (connection) { connection.release(); } }
@@ -252,12 +302,27 @@ app.post('/api/login', async (req, res) => {
     let connection;
     try {
         connection = await dbPool.getConnection();
-        const [rows] = await connection.query( 'SELECT id_usuario, username, password_hash, nombre_completo, rol FROM Usuarios WHERE username = ?', [username] );
+        // *** Incluir avatar_url en la consulta de login ***
+        const [rows] = await connection.query( 'SELECT id_usuario, username, password_hash, nombre_completo, rol, avatar_url FROM Usuarios WHERE username = ?', [username] );
         if (rows.length === 0) { return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' }); }
         const user = rows[0];
         const isPasswordMatch = await bcrypt.compare(password, user.password_hash);
-        if (isPasswordMatch) { return res.status(200).json({ success: true, message: 'Inicio de sesión exitoso.', user: { id: user.id_usuario, username: user.username, nombre: user.nombre_completo, rol: user.rol } }); }
-        else { return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' }); }
+        if (isPasswordMatch) {
+            // *** Devolver avatar_url en la respuesta ***
+             return res.status(200).json({
+                success: true,
+                message: 'Inicio de sesión exitoso.',
+                user: {
+                    id: user.id_usuario,
+                    username: user.username,
+                    nombre: user.nombre_completo,
+                    rol: user.rol,
+                    avatarUrl: user.avatar_url // Añadido
+                 }
+            });
+        } else {
+            return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' });
+        }
     } catch (error) { console.error('Error durante el proceso de login:', error); return res.status(500).json({ success: false, message: 'Error interno del servidor durante el inicio de sesión.' }); }
     finally { if (connection) { connection.release(); } }
 });
@@ -302,8 +367,73 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// --- Rutas API para SERVICIOS ---
+// *** NUEVA RUTA: POST /api/users/:id/avatar - Subir/Actualizar avatar ***
+app.post('/api/users/:id/avatar', upload.single('avatar'), async (req, res) => {
+    const userId = req.params.id;
+    console.log(`Petición POST /api/users/${userId}/avatar recibida.`);
 
+    // Verifica si se subió un archivo
+    if (!req.file) {
+        return res.status(400).json({ success: false, message: 'No se subió ningún archivo de imagen.' });
+    }
+
+    // Verifica si el ID de usuario es válido
+    if (isNaN(parseInt(userId))) {
+        // Si el ID no es válido, borra el archivo subido para no dejar basura
+        fs.unlink(req.file.path, (err) => {
+            if (err) console.error("Error borrando archivo subido por ID inválido:", err);
+        });
+        return res.status(400).json({ success: false, message: 'ID de usuario inválido.' });
+    }
+
+    // Construye la URL pública del avatar
+    // Asegúrate de que las barras inclinadas sean correctas para URL (siempre /)
+    const avatarPath = path.join('uploads', 'avatars', req.file.filename).replace(/\\/g, '/'); // Normaliza a /
+    const avatarUrl = `${req.protocol}://${req.get('host')}/${avatarPath}`; // URL completa
+    console.log(`Archivo subido: ${req.file.path}, URL pública generada: ${avatarUrl}`);
+
+
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+
+        // Actualiza la URL del avatar en la base de datos
+        const [result] = await connection.query(
+            'UPDATE Usuarios SET avatar_url = ? WHERE id_usuario = ?',
+            [avatarUrl, userId]
+        );
+
+        if (result.affectedRows > 0) {
+            console.log(`Avatar actualizado para usuario ID: ${userId}`);
+            return res.status(200).json({
+                success: true,
+                message: 'Foto de perfil actualizada exitosamente.',
+                avatarUrl: avatarUrl // Devuelve la URL completa
+            });
+        } else {
+            // Si el usuario no existe, borra el archivo subido
+            fs.unlink(req.file.path, (err) => {
+                if (err) console.error("Error borrando archivo subido por usuario no encontrado:", err);
+            });
+            console.log(`Usuario ID: ${userId} no encontrado para actualizar avatar.`);
+            return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
+        }
+    } catch (error) {
+        console.error(`Error al actualizar avatar para usuario ID: ${userId}:`, error);
+        // Borra el archivo subido si hay un error de base de datos
+        fs.unlink(req.file.path, (err) => {
+            if (err) console.error("Error borrando archivo subido por error de DB:", err);
+        });
+        return res.status(500).json({ success: false, message: 'Error interno al actualizar la foto de perfil.' });
+    } finally {
+        if (connection) { connection.release(); }
+    }
+});
+// --- Fin Nueva Ruta Avatar ---
+
+
+// --- Rutas API para SERVICIOS ---
+// (Las rutas de servicios existentes van aquí... sin cambios)
 // GET /api/servicios - Obtener lista de servicios
 app.get('/api/servicios', async (req, res) => {
     const soloActivos = req.query.activos === 'true';
@@ -424,7 +554,7 @@ app.delete('/api/servicios/:id', async (req, res) => {
 
 
 // --- Rutas API para VEHÍCULOS ---
-
+// (Las rutas de vehículos existentes van aquí... sin cambios)
 // GET /api/vehiculos/cliente - Obtener vehículos por teléfono de cliente
 app.get('/api/vehiculos/cliente', async (req, res) => {
     const telefonoCliente = req.query.telefono;
@@ -575,6 +705,42 @@ app.delete('/api/vehiculos/:id', async (req, res) => {
         if (connection) await connection.rollback();
          if (error.code === 'ER_ROW_IS_REFERENCED_2') { return res.status(409).json({ success: false, message: 'Error: No se puede eliminar el vehículo porque está referenciado en otras tablas.' }); }
         return res.status(500).json({ success: false, message: 'Error interno al eliminar el vehículo.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+// --- Rutas API para CONTADORES del Dashboard ---
+// (Las rutas de contadores existentes van aquí... sin cambios)
+// GET /api/vehiculos/count - Contar total de vehículos
+app.get('/api/vehiculos/count', async (req, res) => {
+    console.log("Petición GET /api/vehiculos/count recibida.");
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        const [rows] = await connection.query('SELECT COUNT(*) as total FROM Vehiculos');
+        console.log(`Total vehículos contados: ${rows[0].total}`);
+        res.json({ success: true, total: rows[0].total });
+    } catch (error) {
+        console.error('Error al contar vehículos:', error);
+        res.status(500).json({ success: false, message: 'Error interno al contar vehículos.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
+// GET /api/clientes/count - Contar total de clientes
+app.get('/api/clientes/count', async (req, res) => {
+    console.log("Petición GET /api/clientes/count recibida.");
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        const [rows] = await connection.query('SELECT COUNT(*) as total FROM Clientes');
+        console.log(`Total clientes contados: ${rows[0].total}`);
+        res.json({ success: true, total: rows[0].total });
+    } catch (error) {
+        console.error('Error al contar clientes:', error);
+        res.status(500).json({ success: false, message: 'Error interno al contar clientes.' });
     } finally {
         if (connection) connection.release();
     }
