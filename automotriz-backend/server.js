@@ -24,16 +24,16 @@ app.use(
         contentSecurityPolicy: {
             directives: {
                 ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-                "default-src": ["'self'"], // Permite recursos del mismo origen por defecto
-                "script-src": ["'self'", "https://cdn.tailwindcss.com"], // Scripts del mismo origen y Tailwind CDN
-                "style-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "'unsafe-inline'"], // Estilos: mismo origen, FontAwesome, Google Fonts, y estilos en línea
-                "font-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.gstatic.com", "data:"], // Fuentes: mismo origen, FontAwesome, Google Fonts, y data URIs
-                "img-src": ["'self'", `http://localhost:${port}`, process.env.RENDER_EXTERNAL_URL, "https://*.onrender.com", "https://placehold.co", "data:"], // Imágenes: mismo origen, localhost, URL de Render, placehold.co, data URIs
-                "connect-src": ["'self'", process.env.RENDER_EXTERNAL_URL, "https://*.onrender.com", "http://localhost:3000", "http://127.0.0.1:5500"], // Conexiones XHR/fetch
-                "frame-ancestors": ["'self'"], // Evita clickjacking
-                "form-action": ["'self'"], // Permite que los formularios solo envíen al mismo origen
-                "object-src": ["'none'"], // No permitir plugins como Flash
-                "upgrade-insecure-requests": [], // Actualiza HTTP a HTTPS si es posible
+                "default-src": ["'self'"],
+                "script-src": ["'self'", "https://cdn.tailwindcss.com"],
+                "style-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "'unsafe-inline'"],
+                "font-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.gstatic.com", "data:"],
+                "img-src": ["'self'", `http://localhost:${port}`, process.env.RENDER_EXTERNAL_URL, "https://sistemaautomotriz.onrender.com", "https://*.onrender.com", "https://placehold.co", "data:"],
+                "connect-src": ["'self'", process.env.RENDER_EXTERNAL_URL, "https://sistemaautomotriz.onrender.com", "https://*.onrender.com", "http://localhost:3000", "http://127.0.0.1:5500"],
+                "frame-ancestors": ["'self'"],
+                "form-action": ["'self'"],
+                "object-src": ["'none'"],
+                "upgrade-insecure-requests": [],
             },
         },
     })
@@ -43,25 +43,24 @@ const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
 const allowedOrigins = [
     'http://localhost:3000',
     'http://127.0.0.1:5500',
+    'https://sistemaautomotriz.onrender.com'
 ];
-if (RENDER_EXTERNAL_URL) {
+
+if (RENDER_EXTERNAL_URL && !allowedOrigins.includes(RENDER_EXTERNAL_URL)) {
     allowedOrigins.push(RENDER_EXTERNAL_URL);
-    console.log(`RENDER_EXTERNAL_URL (${RENDER_EXTERNAL_URL}) añadida a allowedOrigins.`);
-} else if (process.env.NODE_ENV === 'production') {
-    console.warn('ADVERTENCIA: RENDER_EXTERNAL_URL no está definida en el entorno de producción. CORS podría no funcionar correctamente para el dominio de producción.');
+    console.log(`RENDER_EXTERNAL_URL (${RENDER_EXTERNAL_URL}) también añadida a allowedOrigins.`);
+} else if (!RENDER_EXTERNAL_URL && process.env.NODE_ENV === 'production' && !allowedOrigins.includes('https://sistemaautomotriz.onrender.com')) {
+    console.warn('ADVERTENCIA: RENDER_EXTERNAL_URL no está definida y la URL de producción explícita no está en allowedOrigins. CORS podría fallar.');
 }
 console.log('Orígenes CORS permitidos:', allowedOrigins);
 
 
 app.use(cors({
     origin: function (origin, callback) {
-        if (process.env.NODE_ENV !== 'production' && !origin) { // Permitir solicitudes sin origen en desarrollo (ej. Postman)
-            return callback(null, true);
-        }
-        if (allowedOrigins.includes(origin)) {
+        if (!origin || origin === undefined || origin === null || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            console.error(`Error CORS: Origen no permitido: ${origin}`);
+            console.error(`Error CORS: Origen NO permitido: ${origin}`);
             callback(new Error('Origen no permitido por CORS'));
         }
     },
@@ -118,9 +117,8 @@ if (caPathFromEnv) {
     } else {
         console.warn(`ADVERTENCIA: Certificado CA especificado en DB_SSL_CA_PATH (${absoluteCaPath}) no encontrado.`);
     }
-} else if (process.env.NODE_ENV === 'production' && process.env.DB_HOST && process.env.DB_HOST.includes('aivencloud.com')) {
-    // En producción con Aiven, el CA es usualmente necesario si no está en el trust store del sistema.
-    console.warn(`ADVERTENCIA: DB_SSL_CA_PATH no está definido en .env. Para Aiven en producción, esto es usualmente necesario.`);
+} else if (process.env.NODE_ENV === 'production' && process.env.DB_HOST && (process.env.DB_HOST.includes('aivencloud.com') || process.env.DB_HOST.includes('psdb.cloud'))) {
+    console.warn(`ADVERTENCIA: DB_SSL_CA_PATH no está definido en .env. Para Aiven/PlanetScale en producción, esto es usualmente necesario.`);
 }
 
 
@@ -194,7 +192,7 @@ function authenticateToken(req, res, next) {
     if (!token) {
         return res.status(401).json({ success: false, message: 'Acceso denegado. No autenticado.' });
     }
-    if (!JWT_SECRET) { // Verificar si JWT_SECRET está definido
+    if (!JWT_SECRET) {
         console.error("Error de autenticación: JWT_SECRET no está configurado en el servidor.");
         return res.status(500).json({ success: false, message: "Error de configuración del servidor." });
     }
@@ -410,8 +408,10 @@ app.get('/api/citas', authenticateToken, [
             LEFT JOIN Usuarios uc ON c.creado_por_id = uc.id_usuario LEFT JOIN Usuarios um ON c.modificado_por_id = um.id_usuario
         `;
         const queryParams = []; let conditions = [];
-        // MEJORA: Si el rol no es Administrador, filtrar por req.user.id (creado_por_id o cliente_id si aplica)
-        // Ejemplo: if (req.user.rol !== 'Administrador') { conditions.push('c.creado_por_id = ?'); queryParams.push(req.user.id); }
+        if (req.user.rol !== 'Administrador') {
+             conditions.push('(c.creado_por_id = ? OR EXISTS (SELECT 1 FROM Clientes cl_check WHERE cl_check.id_cliente = c.id_cliente AND cl_check.telefono = (SELECT telefono FROM Usuarios u_check WHERE u_check.id_usuario = ?)))');
+             queryParams.push(req.user.id, req.user.id);
+        }
         if (fecha_inicio) { conditions.push('c.fecha_cita >= ?'); queryParams.push(fecha_inicio); }
         if (fecha_fin) { conditions.push('c.fecha_cita <= ?'); queryParams.push(fecha_fin); }
         if (conditions.length > 0) { sqlQuery += ' WHERE ' + conditions.join(' AND '); }
@@ -438,10 +438,23 @@ app.get('/api/citas/:id', authenticateToken, [
             FROM Citas c JOIN Clientes cl ON c.id_cliente = cl.id_cliente JOIN Vehiculos v ON c.id_vehiculo = v.id_vehiculo
             LEFT JOIN Usuarios uc ON c.creado_por_id = uc.id_usuario LEFT JOIN Usuarios um ON c.modificado_por_id = um.id_usuario
             WHERE c.id_cita = ?`;
-        const [citas] = await connection.query(sqlQuery, [citaId]);
-        if (citas.length === 0) { return res.status(404).json({ success: false, message: 'Cita no encontrada.' }); }
-        // MEJORA: Verificar si req.user.id es el cliente de la cita o un admin antes de devolver
-        return res.status(200).json({ success: true, cita: citas[0] });
+        const [citasResult] = await connection.query(sqlQuery, [citaId]); // Renombrado para evitar conflicto
+        if (citasResult.length === 0) { return res.status(404).json({ success: false, message: 'Cita no encontrada.' }); }
+        const cita = citasResult[0];
+        const [clienteDeCitaRows] = await connection.query('SELECT telefono FROM Clientes WHERE id_cliente = ?', [cita.id_cliente]);
+        const [usuarioAutenticadoRows] = await connection.query('SELECT telefono FROM Usuarios WHERE id_usuario = ?', [req.user.id]);
+
+        let tienePermiso = false;
+        if (req.user.rol === 'Administrador' || cita.creado_por_id === req.user.id) {
+            tienePermiso = true;
+        } else if (clienteDeCitaRows.length > 0 && usuarioAutenticadoRows.length > 0 && clienteDeCitaRows[0].telefono === usuarioAutenticadoRows[0].telefono) {
+            tienePermiso = true;
+        }
+
+        if (!tienePermiso) {
+            return res.status(403).json({ success: false, message: 'Acceso denegado a esta cita.' });
+        }
+        return res.status(200).json({ success: true, cita: cita });
     } catch (error) { console.error(`Error fetching appointment ID: ${citaId}:`, error); return res.status(500).json({ success: false, message: 'Error al obtener los detalles de la cita.' }); }
     finally { if (connection) { connection.release(); } }
 });
@@ -458,11 +471,21 @@ app.put('/api/citas/:id', authenticateToken, [
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const authenticatedUserId = req.user.id;
     const citaId = req.params.id;
-    // MEJORA: Verificar si el usuario autenticado tiene permiso para editar esta cita
     const { fecha_cita, hora_cita, kilometraje, servicio_id, detalle_sintomas } = req.body;
     let connection;
     try {
         connection = await dbPool.getConnection();
+        const [citasExistentes] = await connection.query('SELECT creado_por_id, id_cliente FROM Citas WHERE id_cita = ?', [citaId]);
+        if (citasExistentes.length === 0) { return res.status(404).json({ success: false, message: 'Cita no encontrada.' }); }
+        const citaOriginal = citasExistentes[0];
+        const [clienteDeCitaRows] = await connection.query('SELECT telefono FROM Clientes WHERE id_cliente = ?', [citaOriginal.id_cliente]);
+        const [usuarioAutenticadoRows] = await connection.query('SELECT telefono FROM Usuarios WHERE id_usuario = ?', [authenticatedUserId]);
+        if (req.user.rol !== 'Administrador' &&
+            citaOriginal.creado_por_id !== authenticatedUserId &&
+            !(clienteDeCitaRows.length > 0 && usuarioAutenticadoRows.length > 0 && clienteDeCitaRows[0].telefono === usuarioAutenticadoRows[0].telefono)
+        ) {
+            return res.status(403).json({ success: false, message: 'Acceso denegado. No puedes editar esta cita.' });
+        }
         let servicioParaGuardar = null;
         if (servicio_id && servicio_id !== 'otros' && !isNaN(parseInt(servicio_id))) { servicioParaGuardar = `Servicio ID: ${parseInt(servicio_id)}`; }
         else if (servicio_id === 'otros') { servicioParaGuardar = "Otros servicios / Diagnóstico"; }
@@ -483,7 +506,7 @@ app.patch('/api/citas/:id/cancelar', authenticateToken, [
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const authenticatedUserId = req.user.id;
     const citaId = req.params.id;
-    // MEJORA: Verificar si el usuario autenticado tiene permiso para cancelar esta cita
+    // MEJORA: Autorización más granular aquí
     let connection;
     try {
         connection = await dbPool.getConnection();
@@ -494,14 +517,13 @@ app.patch('/api/citas/:id/cancelar', authenticateToken, [
     finally { if (connection) { connection.release(); } }
 });
 
-app.patch('/api/citas/:id/completar', authenticateToken, [
+app.patch('/api/citas/:id/completar', authenticateToken, adminOnly, [
     param('id').isInt({ gt: 0 }).withMessage('ID de cita inválido.')
 ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const authenticatedUserId = req.user.id;
     const citaId = req.params.id;
-    // MEJORA: Verificar si el usuario autenticado (ej. un Mecánico o Admin) tiene permiso para completar
     let connection;
     try {
         connection = await dbPool.getConnection();
@@ -513,7 +535,7 @@ app.patch('/api/citas/:id/completar', authenticateToken, [
 });
 
 // --- RUTAS DE SERVICIOS ---
-app.get('/api/servicios', authenticateToken, adminOnly, [ query('activos').optional().isBoolean() ], async (req, res) => {
+app.get('/api/servicios', authenticateToken, [ query('activos').optional().isBoolean() ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const soloActivos = req.query.activos === 'true';
@@ -786,7 +808,7 @@ app.get('/api/clientes/count', authenticateToken, adminOnly, async (req, res) =>
 // --- INICIO DEL SERVIDOR ---
 app.listen(port, () => {
     console.log(`Servidor backend escuchando en el puerto ${port}`);
-    const RENDER_EXTERNAL_URL_LOG = process.env.RENDER_EXTERNAL_URL; // Para el log
+    const RENDER_EXTERNAL_URL_LOG = process.env.RENDER_EXTERNAL_URL;
     if (process.env.NODE_ENV !== 'production' && port) {
          console.log(`Accede a tu aplicación frontend en http://localhost:${port}/login.html`);
     } else if (RENDER_EXTERNAL_URL_LOG) {
