@@ -1,103 +1,141 @@
+// Importar dotenv y cargar variables de entorno desde .env
 require('dotenv').config();
+
 const express = require('express');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs'); // Necesario para leer el archivo CA
 const multer = require('multer');
 const { body, validationResult, param, query } = require('express-validator');
-const helmet = require('helmet'); 
+const helmet = require('helmet');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Middlewares de Seguridad y Utilidades
 app.use(
     helmet({
-        crossOriginResourcePolicy: { policy: "cross-origin" }, // Permite que recursos (como imágenes) sean cargados por otros orígenes
-        contentSecurityPolicy: { // Configuración básica de CSP, puedes ajustarla más adelante
+        crossOriginResourcePolicy: { policy: "cross-origin" },
+        contentSecurityPolicy: {
             directives: {
                 ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-                "default-src": ["'self'"], // Por defecto, solo permite recursos del mismo origen
-                "script-src": ["'self'", "https://cdn.tailwindcss.com"], // Permite scripts del mismo origen y Tailwind
-                "style-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "'unsafe-inline'"], // Permite estilos del mismo origen, FontAwesome, Google Fonts, y estilos en línea
-                "font-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.gstatic.com"], // Permite fuentes
-                "img-src": ["'self'", "http://localhost:3000", "https://placehold.co", "data:"], // Permite imágenes del mismo origen, tu backend, placehold.co y data URIs
-                // Considera añadir 'connect-src': ["'self'"] si tus scripts solo hacen fetch a tu propia API.
+                "default-src": ["'self'"],
+                "script-src": ["'self'", "https://cdn.tailwindcss.com"],
+                "style-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "'unsafe-inline'"],
+                "font-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.gstatic.com"],
+                "img-src": ["'self'", `http://localhost:${port}`, "https://*.onrender.com", "https://placehold.co", "data:"], // Ajustar para tu dominio de Render
+                "connect-src": ["'self'", "https://*.onrender.com", "http://localhost:3000", "http://127.0.0.1:5500"], // Ajustar para tu dominio de Render
             },
         },
     })
 );
 
-// Configuración de CORS global
-// Si sirves el frontend desde el mismo origen (localhost:3000), puedes ser más restrictivo.
-// Si tu frontend está en 127.0.0.1:5500, necesitas permitir ese origen.
-app.use(cors({ origin: ['http://localhost:3000', 'http://127.0.0.1:5500'] }));
-
-
+const allowedOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:5500',
+    // Añade aquí la URL de tu servicio Render una vez que la tengas
+    // Ejemplo: 'https://tu-app-automotriz.onrender.com'
+];
+app.use(cors({
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin) || (process.env.RENDER_EXTERNAL_URL && origin === process.env.RENDER_EXTERNAL_URL)) {
+            callback(null, true);
+        } else {
+            console.warn(`Origen CORS no permitido: ${origin}`);
+            callback(new Error('Origen no permitido por CORS'));
+        }
+    },
+    credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // --- Servir archivos estáticos ---
 const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir);
-}
-// Con la CSP img-src configurada, no se necesitan cabeceras especiales aquí para CORS/CORP
-// si las imágenes se sirven desde el mismo origen o desde un origen permitido en la CSP.
+if (!fs.existsSync(uploadsDir)) { fs.mkdirSync(uploadsDir); }
 app.use('/uploads', express.static(uploadsDir));
 console.log(`Sirviendo archivos de uploads desde: ${uploadsDir}`);
 
-// Servir archivos del Frontend (si sigues con este enfoque de servir todo desde el backend)
 const frontendDir = path.join(__dirname, '..');
 console.log(`Intentando servir archivos frontend desde: ${frontendDir}`);
 app.use('/css', express.static(path.join(frontendDir, 'css')));
 app.use('/js', express.static(path.join(frontendDir, 'js')));
-app.use(express.static(frontendDir)); // Sirve HTML desde la raíz del frontend
+app.use(express.static(frontendDir));
 
-// --- Pool de Base de Datos (usando variables de entorno) ---
+// --- Pool de Base de Datos ---
+let sslConfig = {
+    rejectUnauthorized: true // Es bueno mantener esto para seguridad
+};
+
+const caPathFromEnv = process.env.DB_SSL_CA_PATH;
+if (caPathFromEnv) {
+    const absoluteCaPath = path.isAbsolute(caPathFromEnv) ? caPathFromEnv : path.join(__dirname, caPathFromEnv);
+    if (fs.existsSync(absoluteCaPath)) {
+        sslConfig.ca = fs.readFileSync(absoluteCaPath);
+        console.log(`Usando certificado CA desde: ${absoluteCaPath}`);
+    } else {
+        console.warn(`ADVERTENCIA: Certificado CA especificado en DB_SSL_CA_PATH (${absoluteCaPath}) no encontrado. La conexión SSL podría fallar.`);
+    }
+} else {
+    console.warn(`ADVERTENCIA: DB_SSL_CA_PATH no está definido en .env. Para Aiven, esto es usualmente necesario.`);
+}
+
 const dbPool = mysql.createPool({
     connectionLimit: 10,
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
+    port: process.env.DB_PORT, // Asegúrate de tener DB_PORT en tu .env si Aiven usa uno no estándar
     waitForConnections: true,
     queueLimit: 0,
-    dateStrings: true
+    dateStrings: true,
+    ssl: sslConfig
 });
 
 async function testDbConnection() {
     let connection;
     try {
         connection = await dbPool.getConnection();
-        console.log('¡Conexión exitosa a la base de datos!');
+        console.log('¡Conexión exitosa a la base de datos de Aiven!');
     } catch (error) {
-        console.error('Error al conectar con la base de datos:', error);
+        console.error('Error al conectar con la base de datos de Aiven:', error);
         if (error.code === 'ER_ACCESS_DENIED_ERROR') {
-             console.error('VERIFICA LAS CREDENCIALES EN TU ARCHIVO .env');
+             console.error('VERIFICA LAS CREDENCIALES DE AIVEN EN TU ARCHIVO .env');
         }
-        process.exit(1);
+        if (error.message.includes('SSL') || error.message.includes('certificate') || error.code === 'HANDSHAKE_SSL_ERROR') {
+            console.error('El error parece estar relacionado con la configuración SSL. Verifica el archivo CA (DB_SSL_CA_PATH en .env) y la configuración.');
+        }
+        // No salir del proceso en producción automáticamente, mejor loguear y manejar.
+        // process.exit(1);
     } finally {
         if (connection) connection.release();
     }
 }
-testDbConnection();
+testDbConnection(); // Probar conexión al iniciar
 
 const saltRounds = 10;
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+    console.error("ERROR CRÍTICO: Falta JWT_SECRET en las variables de entorno.");
+    // process.exit(1); // Considera si quieres que la app falle al iniciar sin JWT_SECRET
+}
 
 // --- Configuración de Multer ---
 const avatarUploadsDir = path.join(uploadsDir, 'avatars');
-if (!fs.existsSync(avatarUploadsDir)) {
-    fs.mkdirSync(avatarUploadsDir);
-}
+if (!fs.existsSync(avatarUploadsDir)) { fs.mkdirSync(avatarUploadsDir); }
 const storage = multer.diskStorage({
     destination: function (req, file, cb) { cb(null, avatarUploadsDir); },
     filename: function (req, file, cb) {
-        const userId = req.params.id || 'unknown';
+        const userIdForFile = req.user ? req.user.id : (req.params.id || 'unknown');
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         const extension = path.extname(file.originalname);
-        cb(null, `user-${userId}-${uniqueSuffix}${extension}`);
+        cb(null, `user-${userIdForFile}-${uniqueSuffix}${extension}`);
     }
 });
 const fileFilter = (req, file, cb) => {
@@ -113,21 +151,140 @@ function handleMulterError(err, req, res, next) {
     next();
 }
 
+// --- Middleware de Autenticación JWT ---
+function authenticateToken(req, res, next) {
+    const token = req.cookies.accessToken;
+    if (!token) {
+        return res.status(401).json({ success: false, message: 'Acceso denegado. No autenticado.' });
+    }
+    jwt.verify(token, JWT_SECRET, (err, userPayload) => {
+        if (err) {
+            res.clearCookie('accessToken');
+            return res.status(403).json({ success: false, message: 'Acceso denegado. Token inválido o expirado.' });
+        }
+        req.user = userPayload;
+        next();
+    });
+}
+
+// --- Middleware de Autorización Basada en Roles ---
+function authorizeRoles(allowedRoles) {
+    return (req, res, next) => {
+        if (!req.user || !req.user.rol) {
+            return res.status(403).json({ success: false, message: 'Acceso denegado. Rol no especificado.' });
+        }
+        const hasRole = allowedRoles.includes(req.user.rol);
+        if (!hasRole) {
+            return res.status(403).json({ success: false, message: 'Acceso denegado. No tienes los permisos necesarios.' });
+        }
+        next();
+    };
+}
+const adminOnly = authorizeRoles(['Administrador']);
+
 // --- Ruta Raíz ---
 app.get('/', (req, res) => {
     res.redirect('/login.html');
 });
 
-// --- RUTAS API (Citas, Auth, Servicios, Vehículos, Clientes, etc.) ---
-// =====================================================================
-// CON VALIDACIONES DE EXPRESS-VALIDATOR
-// =====================================================================
+// --- RUTAS API ---
+// (Aquí van todas tus rutas API como las tenías, con authenticateToken y authorizeRoles aplicados)
 
-// (Aquí van todas tus rutas API como las tenías en la versión anterior,
-//  con las validaciones de express-validator)
+// --- RUTAS DE AUTENTICACIÓN Y USUARIOS ---
+app.post('/api/login', [
+    body('username').trim().notEmpty().withMessage('Usuario es requerido.').isLength({ min: 3, max: 50 }).escape(),
+    body('password').notEmpty().withMessage('Contraseña es requerida.')
+], async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
+    const { username, password } = req.body;
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        const [rows] = await connection.query('SELECT id_usuario, username, password_hash, nombre_completo, rol, avatar_url FROM Usuarios WHERE username = ?', [username]);
+        if (rows.length === 0) { return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' }); }
+        const user = rows[0];
+        const isPasswordMatch = await bcrypt.compare(password, user.password_hash);
+        if (isPasswordMatch) {
+            const userPayload = { id: user.id_usuario, username: user.username, rol: user.rol };
+            const accessToken = jwt.sign(userPayload, JWT_SECRET, { expiresIn: '1h' });
+            res.cookie('accessToken', accessToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', maxAge: 60 * 60 * 1000 });
+            return res.status(200).json({ success: true, message: 'Inicio de sesión exitoso.', user: { id: user.id_usuario, username: user.username, nombre: user.nombre_completo, rol: user.rol, avatarUrl: user.avatar_url }});
+        } else { return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' }); }
+    } catch (error) { console.error('Error durante el proceso de login:', error); return res.status(500).json({ success: false, message: 'Error interno del servidor durante el inicio de sesión.' }); }
+    finally { if (connection) { connection.release(); } }
+});
 
-// Ejemplo de ruta (DEBES REEMPLAZAR ESTO CON TUS RUTAS REALES):
+app.post('/api/logout', (req, res) => {
+    res.clearCookie('accessToken');
+    res.status(200).json({ success: true, message: 'Sesión cerrada exitosamente.' });
+});
+
+app.post('/api/register', [
+    body('username').trim().notEmpty().withMessage('Nombre de usuario es requerido.').isAlphanumeric().withMessage('Username solo puede contener letras y números.').isLength({ min: 3, max: 50 }).escape(),
+    body('password').notEmpty().withMessage('Contraseña es requerida.').isLength({ min: 6 }).withMessage('La contraseña debe tener al menos 6 caracteres.'),
+    body('nombre_completo').trim().notEmpty().withMessage('Nombre completo es requerido.').isLength({ max: 100 }).escape()
+], async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
+    const { username, password, nombre_completo } = req.body;
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        const [existingName] = await connection.query('SELECT id_usuario FROM Usuarios WHERE nombre_completo = ?', [nombre_completo]);
+        if (existingName.length > 0) { return res.status(409).json({ success: false, message: 'Error: Ya existe un usuario registrado con ese nombre completo.' }); }
+        const [existingUsername] = await connection.query('SELECT id_usuario FROM Usuarios WHERE username = ?', [username]);
+        if (existingUsername.length > 0) { return res.status(409).json({ success: false, message: 'Error: El nombre de usuario ya está en uso.' }); }
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
+        const rolPorDefecto = 'Usuario';
+        await connection.query('INSERT INTO Usuarios (username, password_hash, nombre_completo, rol) VALUES (?, ?, ?, ?)', [username, hashedPassword, nombre_completo, rolPorDefecto]);
+        return res.status(201).json({ success: true, message: 'Usuario registrado exitosamente.' });
+    } catch (error) {
+        console.error('Error durante el proceso de registro:', error);
+        if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) { return res.status(409).json({ success: false, message: `Error: Conflicto de datos duplicados.` }); }
+        return res.status(500).json({ success: false, message: 'Error interno del servidor durante el registro.' });
+    } finally { if (connection) { connection.release(); } }
+});
+
+app.post('/api/users/:id/avatar', [
+    authenticateToken,
+    param('id').isInt({ gt: 0 }).withMessage('ID de usuario inválido.')
+], upload.single('avatar'), handleMulterError, async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        if (req.file && req.file.path) { fs.unlink(req.file.path, (err) => { if (err) console.error("Error borrando archivo subido por ID inválido (validation):", err); }); }
+        return res.status(400).json({ success: false, errors: errors.array() });
+    }
+    const userIdFromParams = parseInt(req.params.id, 10);
+    const authenticatedUserId = req.user.id;
+    const authenticatedUserRol = req.user.rol;
+    if (authenticatedUserId !== userIdFromParams && authenticatedUserRol !== 'Administrador') {
+         if (req.file && req.file.path) { fs.unlink(req.file.path, (err) => { if (err) console.error("Error borrando archivo subido por falta de autorización:", err); }); }
+         return res.status(403).json({ success: false, message: 'Acceso denegado. No tienes permiso para realizar esta acción.' });
+    }
+    if (!req.file) { return res.status(400).json({ success: false, message: 'No se subió ningún archivo de imagen.' }); }
+    const avatarRelativePath = path.join('uploads', 'avatars', req.file.filename).replace(/\\/g, '/');
+    const avatarUrl = `${req.protocol}://${req.get('host')}/${avatarRelativePath}`;
+    let connection;
+    try {
+        connection = await dbPool.getConnection();
+        const [result] = await connection.query('UPDATE Usuarios SET avatar_url = ? WHERE id_usuario = ?', [avatarUrl, userIdFromParams]);
+        if (result.affectedRows > 0) {
+            return res.status(200).json({ success: true, message: 'Foto de perfil actualizada exitosamente.', avatarUrl: avatarUrl });
+        } else {
+            fs.unlink(req.file.path, (err) => { if (err) console.error("Error borrando archivo subido por usuario no encontrado:", err); });
+            return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
+        }
+    } catch (error) {
+        console.error(`Error al actualizar avatar para usuario ID: ${userIdFromParams}:`, error);
+        fs.unlink(req.file.path, (err) => { if (err) console.error("Error borrando archivo subido por error de DB:", err); });
+        return res.status(500).json({ success: false, message: 'Error interno al actualizar la foto de perfil.' });
+    } finally { if (connection) { connection.release(); } }
+});
+
+// --- RUTAS DE CITAS ---
 app.post('/api/citas', [
+    authenticateToken,
     body('nombres_cliente').trim().notEmpty().withMessage('Nombres del cliente son requeridos.').isLength({ max: 100 }).escape(),
     body('apellidos_cliente').trim().notEmpty().withMessage('Apellidos del cliente son requeridos.').isLength({ max: 100 }).escape(),
     body('email_cliente').optional({ checkFalsy: true }).isEmail().withMessage('Email inválido.').normalizeEmail().isLength({ max: 100 }),
@@ -142,20 +299,16 @@ app.post('/api/citas', [
     body('servicio_id').notEmpty().withMessage('Servicio es requerido.').trim().escape(),
     body('detalle_sintomas').optional({ checkFalsy: true }).trim().isLength({ max: 1000 }).escape(),
     body('fecha_cita').isISO8601().withMessage('Fecha de cita inválida. Debe ser YYYY-MM-DD.'),
-    body('hora_cita').matches(/^([01]\d|2[0-3]):([0-5]\d)$/).withMessage('Hora de cita inválida (HH:MM).'),
-    body('userId').isInt({ gt: 0 }).withMessage('ID de usuario creador inválido.')
+    body('hora_cita').matches(/^([01]\d|2[0-3]):([0-5]\d)$/).withMessage('Hora de cita inválida (HH:MM).')
 ], async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        console.log("Errores de validación en POST /api/citas:", errors.array());
-        return res.status(400).json({ success: false, errors: errors.array() });
-    }
+    if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
+    const authenticatedUserId = req.user.id;
     const {
         nombres_cliente, apellidos_cliente, email_cliente, telefono_cliente,
         vehiculo_registrado_id, is_new_vehicle, marca_vehiculo, modelo_vehiculo,
         ano_vehiculo, placa_vehiculo, kilometraje, servicio_id,
-        detalle_sintomas, fecha_cita, hora_cita,
-        userId
+        detalle_sintomas, fecha_cita, hora_cita
     } = req.body;
     if (is_new_vehicle === '1' && (!marca_vehiculo || !modelo_vehiculo || !ano_vehiculo || !placa_vehiculo)) return res.status(400).json({ success: false, message: 'Faltan campos obligatorios para registrar el nuevo vehículo.' });
     if (is_new_vehicle !== '1' && !vehiculo_registrado_id) return res.status(400).json({ success: false, message: 'Debe seleccionar un vehículo existente o añadir uno nuevo.' });
@@ -184,7 +337,7 @@ app.post('/api/citas', [
         else { await connection.rollback(); return res.status(400).json({ success: false, message: 'Debe seleccionar un servicio válido.' }); }
         const estadoInicial = 'Pendiente';
         const sqlInsertCita = `INSERT INTO Citas (id_cliente, id_vehiculo, fecha_cita, hora_cita, kilometraje, servicio_principal, motivo_detalle, estado, creado_por_id, fecha_creacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
-        const insertParams = [ clienteId, vehiculoId, fecha_cita, hora_cita, kilometraje || null, servicioParaGuardar, detalle_sintomas || null, estadoInicial, userId ];
+        const insertParams = [ clienteId, vehiculoId, fecha_cita, hora_cita, kilometraje || null, servicioParaGuardar, detalle_sintomas || null, estadoInicial, authenticatedUserId ];
         const [citaResult] = await connection.query(sqlInsertCita, insertParams);
         const citaId = citaResult.insertId;
         await connection.commit();
@@ -198,10 +351,7 @@ app.post('/api/citas', [
     } finally { if (connection) { connection.release(); } }
 });
 
-// --- COPIA AQUÍ EL RESTO DE TUS RUTAS API (GET /api/citas, GET /api/citas/:id, etc HASTA /api/clientes/count) ---
-// --- ASEGÚRATE DE QUE CADA UNA TENGA SU BLOQUE DE VALIDACIÓN Y EL MANEJO DE validationResult ---
-
-app.get('/api/citas', [
+app.get('/api/citas', authenticateToken, [
     query('fecha_inicio').optional().isISO8601().toDate().withMessage('Fecha de inicio inválida.'),
     query('fecha_fin').optional().isISO8601().toDate().withMessage('Fecha de fin inválida.')
 ], async (req, res) => {
@@ -229,7 +379,7 @@ app.get('/api/citas', [
     finally { if (connection) { connection.release(); } }
 });
 
-app.get('/api/citas/:id', [
+app.get('/api/citas/:id', authenticateToken, [
     param('id').isInt({ gt: 0 }).withMessage('ID de cita inválido.')
 ], async (req, res) => {
     const errors = validationResult(req);
@@ -252,19 +402,19 @@ app.get('/api/citas/:id', [
     finally { if (connection) { connection.release(); } }
 });
 
-app.put('/api/citas/:id', [
+app.put('/api/citas/:id', authenticateToken, [
     param('id').isInt({ gt: 0 }).withMessage('ID de cita inválido.'),
     body('fecha_cita').isISO8601().withMessage('Fecha de cita inválida. Debe ser YYYY-MM-DD.'),
     body('hora_cita').matches(/^([01]\d|2[0-3]):([0-5]\d)$/).withMessage('Hora de cita inválida (HH:MM).'),
     body('kilometraje').optional({ checkFalsy: true }).isInt({ min: 0 }).withMessage('Kilometraje inválido.'),
     body('servicio_id').notEmpty().withMessage('Servicio es requerido.').trim().escape(),
     body('detalle_sintomas').optional({ checkFalsy: true }).trim().isLength({ max: 1000 }).escape(),
-    body('userId').isInt({ gt: 0 }).withMessage('ID de usuario modificador inválido.')
 ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
+    const authenticatedUserId = req.user.id;
     const citaId = req.params.id;
-    const { fecha_cita, hora_cita, kilometraje, servicio_id, detalle_sintomas, userId } = req.body;
+    const { fecha_cita, hora_cita, kilometraje, servicio_id, detalle_sintomas } = req.body;
     let connection;
     try {
         connection = await dbPool.getConnection();
@@ -273,7 +423,7 @@ app.put('/api/citas/:id', [
         else if (servicio_id === 'otros') { servicioParaGuardar = "Otros servicios / Diagnóstico"; }
         else { return res.status(400).json({ success: false, message: 'Debe seleccionar un servicio válido.' });}
         const sqlQuery = `UPDATE Citas SET fecha_cita = ?, hora_cita = ?, kilometraje = ?, servicio_principal = ?, motivo_detalle = ?, modificado_por_id = ?, fecha_modificacion = NOW() WHERE id_cita = ?`;
-        const queryParams = [ fecha_cita, hora_cita, kilometraje || null, servicioParaGuardar, detalle_sintomas || null, userId, citaId ];
+        const queryParams = [ fecha_cita, hora_cita, kilometraje || null, servicioParaGuardar, detalle_sintomas || null, authenticatedUserId, citaId ];
         const [result] = await connection.query(sqlQuery, queryParams);
         if (result.affectedRows > 0 || result.changedRows > 0) { return res.status(200).json({ success: true, message: 'Cita actualizada exitosamente.' }); }
         else { return res.status(404).json({ success: false, message: 'Cita no encontrada o sin cambios.' }); }
@@ -281,126 +431,42 @@ app.put('/api/citas/:id', [
     finally { if (connection) { connection.release(); } }
 });
 
-app.patch('/api/citas/:id/cancelar', [
-    param('id').isInt({ gt: 0 }).withMessage('ID de cita inválido.'),
-    body('userId').optional({ checkFalsy: true }).isInt({ gt: 0 }).withMessage('ID de usuario inválido.')
+app.patch('/api/citas/:id/cancelar', authenticateToken, [
+    param('id').isInt({ gt: 0 }).withMessage('ID de cita inválido.')
 ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
+    const authenticatedUserId = req.user.id;
     const citaId = req.params.id;
-    const userId = req.body.userId || null;
     let connection;
     try {
         connection = await dbPool.getConnection();
-        const [result] = await connection.query( "UPDATE Citas SET estado = 'Cancelada', modificado_por_id = ?, fecha_modificacion = NOW() WHERE id_cita = ?", [userId, citaId] );
+        const [result] = await connection.query( "UPDATE Citas SET estado = 'Cancelada', modificado_por_id = ?, fecha_modificacion = NOW() WHERE id_cita = ?", [authenticatedUserId, citaId] );
         if (result.affectedRows > 0) { return res.status(200).json({ success: true, message: 'Cita cancelada exitosamente.' }); }
         else { return res.status(404).json({ success: false, message: 'Cita no encontrada.' }); }
     } catch (error) { console.error(`Error al cancelar cita ID: ${citaId}:`, error); return res.status(500).json({ success: false, message: 'Error interno al cancelar la cita.' }); }
     finally { if (connection) { connection.release(); } }
 });
 
-app.patch('/api/citas/:id/completar', [
-    param('id').isInt({ gt: 0 }).withMessage('ID de cita inválido.'),
-    body('userId').optional({ checkFalsy: true }).isInt({ gt: 0 }).withMessage('ID de usuario inválido.')
+app.patch('/api/citas/:id/completar', authenticateToken, [
+    param('id').isInt({ gt: 0 }).withMessage('ID de cita inválido.')
 ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
+    const authenticatedUserId = req.user.id;
     const citaId = req.params.id;
-    const userId = req.body.userId || null;
     let connection;
     try {
         connection = await dbPool.getConnection();
-        const [result] = await connection.query( "UPDATE Citas SET estado = 'Completada', modificado_por_id = ?, fecha_modificacion = NOW() WHERE id_cita = ?", [userId, citaId] );
+        const [result] = await connection.query( "UPDATE Citas SET estado = 'Completada', modificado_por_id = ?, fecha_modificacion = NOW() WHERE id_cita = ?", [authenticatedUserId, citaId] );
         if (result.affectedRows > 0) { return res.status(200).json({ success: true, message: 'Cita marcada como completada.' }); }
         else { return res.status(404).json({ success: false, message: 'Cita no encontrada.' }); }
     } catch (error) { console.error(`Error al completar cita ID: ${citaId}:`, error); return res.status(500).json({ success: false, message: 'Error interno al completar la cita.' }); }
     finally { if (connection) { connection.release(); } }
 });
 
-// --- RUTAS DE AUTENTICACIÓN Y USUARIOS ---
-app.post('/api/login', [
-    body('username').trim().notEmpty().withMessage('Usuario es requerido.').isLength({ min: 3, max: 50 }).escape(),
-    body('password').notEmpty().withMessage('Contraseña es requerida.')
-], async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
-    const { username, password } = req.body;
-    let connection;
-    try {
-        connection = await dbPool.getConnection();
-        const [rows] = await connection.query('SELECT id_usuario, username, password_hash, nombre_completo, rol, avatar_url FROM Usuarios WHERE username = ?', [username]);
-        if (rows.length === 0) { return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' }); }
-        const user = rows[0];
-        const isPasswordMatch = await bcrypt.compare(password, user.password_hash);
-        if (isPasswordMatch) {
-            return res.status(200).json({
-                success: true,
-                message: 'Inicio de sesión exitoso.',
-                user: { id: user.id_usuario, username: user.username, nombre: user.nombre_completo, rol: user.rol, avatarUrl: user.avatar_url }
-            });
-        } else { return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' }); }
-    } catch (error) { console.error('Error durante el proceso de login:', error); return res.status(500).json({ success: false, message: 'Error interno del servidor durante el inicio de sesión.' }); }
-    finally { if (connection) { connection.release(); } }
-});
-
-app.post('/api/register', [
-    body('username').trim().notEmpty().withMessage('Nombre de usuario es requerido.').isAlphanumeric().withMessage('Username solo puede contener letras y números.').isLength({ min: 3, max: 50 }).escape(),
-    body('password').notEmpty().withMessage('Contraseña es requerida.').isLength({ min: 6 }).withMessage('La contraseña debe tener al menos 6 caracteres.'),
-    body('nombre_completo').trim().notEmpty().withMessage('Nombre completo es requerido.').isLength({ max: 100 }).escape()
-], async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
-    const { username, password, nombre_completo } = req.body;
-    let connection;
-    try {
-        connection = await dbPool.getConnection();
-        const [existingName] = await connection.query('SELECT id_usuario FROM Usuarios WHERE nombre_completo = ?', [nombre_completo]);
-        if (existingName.length > 0) { return res.status(409).json({ success: false, message: 'Error: Ya existe un usuario registrado con ese nombre completo.' }); }
-        const [existingUsername] = await connection.query('SELECT id_usuario FROM Usuarios WHERE username = ?', [username]);
-        if (existingUsername.length > 0) { return res.status(409).json({ success: false, message: 'Error: El nombre de usuario ya está en uso.' }); }
-        const hashedPassword = await bcrypt.hash(password, saltRounds);
-        const rolPorDefecto = 'Usuario';
-        const [result] = await connection.query('INSERT INTO Usuarios (username, password_hash, nombre_completo, rol) VALUES (?, ?, ?, ?)', [username, hashedPassword, nombre_completo, rolPorDefecto]);
-        return res.status(201).json({ success: true, message: 'Usuario registrado exitosamente.' });
-    } catch (error) {
-        console.error('Error durante el proceso de registro:', error);
-        if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) { return res.status(409).json({ success: false, message: `Error: Conflicto de datos duplicados.` }); }
-        return res.status(500).json({ success: false, message: 'Error interno del servidor durante el registro.' });
-    } finally { if (connection) { connection.release(); } }
-});
-
-app.post('/api/users/:id/avatar', [
-    param('id').isInt({ gt: 0 }).withMessage('ID de usuario inválido.')
-], upload.single('avatar'), handleMulterError, async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        if (req.file && req.file.path) { fs.unlink(req.file.path, (err) => { if (err) console.error("Error borrando archivo subido por ID inválido (validation):", err); }); }
-        return res.status(400).json({ success: false, errors: errors.array() });
-    }
-    const userId = req.params.id;
-    if (!req.file) { return res.status(400).json({ success: false, message: 'No se subió ningún archivo de imagen.' }); }
-    const avatarRelativePath = path.join('uploads', 'avatars', req.file.filename).replace(/\\/g, '/');
-    const avatarUrl = `${req.protocol}://${req.get('host')}/${avatarRelativePath}`;
-    let connection;
-    try {
-        connection = await dbPool.getConnection();
-        const [result] = await connection.query('UPDATE Usuarios SET avatar_url = ? WHERE id_usuario = ?', [avatarUrl, userId]);
-        if (result.affectedRows > 0) { return res.status(200).json({ success: true, message: 'Foto de perfil actualizada exitosamente.', avatarUrl: avatarUrl }); }
-        else {
-            fs.unlink(req.file.path, (err) => { if (err) console.error("Error borrando archivo subido por usuario no encontrado:", err); });
-            return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
-        }
-    } catch (error) {
-        console.error(`Error al actualizar avatar para usuario ID: ${userId}:`, error);
-        fs.unlink(req.file.path, (err) => { if (err) console.error("Error borrando archivo subido por error de DB:", err); });
-        return res.status(500).json({ success: false, message: 'Error interno al actualizar la foto de perfil.' });
-    } finally { if (connection) { connection.release(); } }
-});
-
 // --- RUTAS DE SERVICIOS ---
-app.get('/api/servicios', [
-    query('activos').optional().isBoolean().withMessage('El filtro "activos" debe ser booleano (true/false).')
-], async (req, res) => {
+app.get('/api/servicios', authenticateToken, adminOnly, [ query('activos').optional().isBoolean() ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const soloActivos = req.query.activos === 'true';
@@ -417,9 +483,7 @@ app.get('/api/servicios', [
     finally { if (connection) { connection.release(); } }
 });
 
-app.post('/api/servicios', [
-    body('nombre_servicio').trim().notEmpty().withMessage('El nombre del servicio es requerido.').isLength({max: 100}).escape()
-], async (req, res) => {
+app.post('/api/servicios', authenticateToken, adminOnly, [ body('nombre_servicio').trim().notEmpty().withMessage('El nombre del servicio es requerido.').isLength({max: 100}).escape() ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const { nombre_servicio } = req.body;
@@ -437,10 +501,7 @@ app.post('/api/servicios', [
     } finally { if (connection) connection.release(); }
 });
 
-app.put('/api/servicios/:id', [
-    param('id').isInt({ gt: 0 }).withMessage('ID de servicio inválido.'),
-    body('nombre_servicio').trim().notEmpty().withMessage('El nuevo nombre del servicio es requerido.').isLength({max: 100}).escape()
-], async (req, res) => {
+app.put('/api/servicios/:id', authenticateToken, adminOnly, [ param('id').isInt({ gt: 0 }), body('nombre_servicio').trim().notEmpty().isLength({max: 100}).escape() ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const servicioId = req.params.id;
@@ -463,9 +524,7 @@ app.put('/api/servicios/:id', [
     } finally { if (connection) connection.release(); }
 });
 
-app.patch('/api/servicios/:id/toggle', [
-    param('id').isInt({ gt: 0 }).withMessage('ID de servicio inválido.')
-], async (req, res) => {
+app.patch('/api/servicios/:id/toggle', authenticateToken, adminOnly, [ param('id').isInt({ gt: 0 }) ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const servicioId = req.params.id;
@@ -482,9 +541,7 @@ app.patch('/api/servicios/:id/toggle', [
     finally { if (connection) connection.release(); }
 });
 
-app.delete('/api/servicios/:id', [
-    param('id').isInt({ gt: 0 }).withMessage('ID de servicio inválido.')
-], async (req, res) => {
+app.delete('/api/servicios/:id', authenticateToken, adminOnly, [ param('id').isInt({ gt: 0 }) ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const servicioId = req.params.id;
@@ -507,11 +564,8 @@ app.delete('/api/servicios/:id', [
     } finally { if (connection) connection.release(); }
 });
 
-
 // --- RUTAS DE VEHÍCULOS Y CLIENTES ---
-app.get('/api/vehiculos/cliente', [
-    query('telefono').trim().notEmpty().withMessage('Número de teléfono es requerido.').isMobilePhone('any', { strictMode: false }).withMessage('Número de teléfono inválido.')
-], async (req, res) => {
+app.get('/api/vehiculos/cliente', authenticateToken, [ query('telefono').trim().notEmpty().isMobilePhone('any') ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const telefonoCliente = req.query.telefono;
@@ -527,9 +581,7 @@ app.get('/api/vehiculos/cliente', [
     finally { if (connection) { connection.release(); } }
 });
 
-app.get('/api/clientes/buscar', [
-    query('telefono').trim().notEmpty().withMessage('Número de teléfono es requerido.').isMobilePhone('any', { strictMode: false }).withMessage('Número de teléfono inválido.')
-], async (req, res) => {
+app.get('/api/clientes/buscar', authenticateToken, [ query('telefono').trim().notEmpty().isMobilePhone('any') ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const telefono = req.query.telefono;
@@ -547,9 +599,7 @@ app.get('/api/clientes/buscar', [
     finally { if (connection) connection.release(); }
 });
 
-app.get('/api/vehiculos', [
-    query('placa').optional().trim().toUpperCase().escape()
-], async (req, res) => {
+app.get('/api/vehiculos', authenticateToken, adminOnly, [ query('placa').optional().trim().toUpperCase().escape() ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const placaQuery = req.query.placa;
@@ -569,7 +619,7 @@ app.get('/api/vehiculos', [
     finally { if (connection) { connection.release(); } }
 });
 
-app.post('/api/vehiculos', [
+app.post('/api/vehiculos', authenticateToken, adminOnly, [
     body('placa_vehiculo').trim().notEmpty().withMessage('Placa es requerida.').isLength({min:3, max:10}).toUpperCase().escape(),
     body('marca_vehiculo').trim().notEmpty().withMessage('Marca es requerida.').isLength({max:50}).escape(),
     body('modelo_vehiculo').trim().notEmpty().withMessage('Modelo es requerido.').isLength({max:50}).escape(),
@@ -600,7 +650,7 @@ app.post('/api/vehiculos', [
     } finally { if (connection) connection.release(); }
 });
 
-app.put('/api/vehiculos/:id', [
+app.put('/api/vehiculos/:id', authenticateToken, adminOnly, [
     param('id').isInt({ gt: 0 }).withMessage('ID de vehículo inválido.'),
     body('placa_vehiculo').trim().notEmpty().withMessage('Placa es requerida.').isLength({min:3, max:10}).toUpperCase().escape(),
     body('marca_vehiculo').trim().notEmpty().withMessage('Marca es requerida.').isLength({max:50}).escape(),
@@ -631,7 +681,7 @@ app.put('/api/vehiculos/:id', [
     } finally { if (connection) connection.release(); }
 });
 
-app.delete('/api/vehiculos/:id', [
+app.delete('/api/vehiculos/:id', authenticateToken, adminOnly, [
     param('id').isInt({ gt: 0 }).withMessage('ID de vehículo inválido.')
 ], async (req, res) => {
     const errors = validationResult(req);
@@ -656,7 +706,7 @@ app.delete('/api/vehiculos/:id', [
 });
 
 // --- RUTAS DE CONTEO (Dashboard) ---
-app.get('/api/vehiculos/count', async (req, res) => {
+app.get('/api/vehiculos/count', authenticateToken, adminOnly, async (req, res) => {
     let connection;
     try {
         connection = await dbPool.getConnection();
@@ -670,7 +720,7 @@ app.get('/api/vehiculos/count', async (req, res) => {
     }
 });
 
-app.get('/api/clientes/count', async (req, res) => {
+app.get('/api/clientes/count', authenticateToken, adminOnly, async (req, res) => {
     let connection;
     try {
         connection = await dbPool.getConnection();
@@ -684,11 +734,14 @@ app.get('/api/clientes/count', async (req, res) => {
     }
 });
 
+// --- FIN DE RUTAS API ---
 
 // --- INICIO DEL SERVIDOR ---
 app.listen(port, () => {
-    console.log(`Servidor backend escuchando en http://localhost:${port}`);
-    console.log(`Accede a tu aplicación frontend en http://localhost:${port}/login.html (o la página que uses)`);
+    console.log(`Servidor backend escuchando en el puerto ${port}`);
+    if (process.env.NODE_ENV !== 'production') {
+         console.log(`Accede a tu aplicación frontend en http://localhost:${port}/login.html`);
+    }
 });
 
 // Manejo de cierre del servidor
