@@ -27,25 +27,29 @@ app.use(
                 "script-src": ["'self'", "https://cdn.tailwindcss.com"],
                 "style-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "'unsafe-inline'"],
                 "font-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.gstatic.com"],
-                "img-src": ["'self'", `http://localhost:${port}`, "https://*.onrender.com", "https://placehold.co", "data:"], // Ajustar para tu dominio de Render
-                "connect-src": ["'self'", "https://*.onrender.com", "http://localhost:3000", "http://127.0.0.1:5500"], // Ajustar para tu dominio de Render
+                "img-src": ["'self'", `http://localhost:${port}`, process.env.RENDER_EXTERNAL_URL, "https://*.onrender.com", "https://placehold.co", "https://sistemaautomotriz.onrender.com", "data:"],
+                "connect-src": ["'self'", process.env.RENDER_EXTERNAL_URL, "https://*.onrender.com", "http://localhost:3000", "https://sistemaautomotriz.onrender.com", "http://127.0.0.1:5500"], 
             },
         },
     })
 );
 
+const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
 const allowedOrigins = [
     'http://localhost:3000',
     'http://127.0.0.1:5500',
-    // Añade aquí la URL de tu servicio Render una vez que la tengas
-    // Ejemplo: 'https://tu-app-automotriz.onrender.com'
+    'https://sistemaautomotriz.onrender.com',
 ];
+if (RENDER_EXTERNAL_URL) {
+    allowedOrigins.push(RENDER_EXTERNAL_URL);
+}
+
 app.use(cors({
     origin: function (origin, callback) {
-        if (!origin || allowedOrigins.includes(origin) || (process.env.RENDER_EXTERNAL_URL && origin === process.env.RENDER_EXTERNAL_URL)) {
+        if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            console.warn(`Origen CORS no permitido: ${origin}`);
+            console.error(`Error CORS: Origen no permitido: ${origin}`);
             callback(new Error('Origen no permitido por CORS'));
         }
     },
@@ -69,9 +73,8 @@ app.use(express.static(frontendDir));
 
 // --- Pool de Base de Datos ---
 let sslConfig = {
-    rejectUnauthorized: true // Es bueno mantener esto para seguridad
+    rejectUnauthorized: true
 };
-
 const caPathFromEnv = process.env.DB_SSL_CA_PATH;
 if (caPathFromEnv) {
     const absoluteCaPath = path.isAbsolute(caPathFromEnv) ? caPathFromEnv : path.join(__dirname, caPathFromEnv);
@@ -79,7 +82,7 @@ if (caPathFromEnv) {
         sslConfig.ca = fs.readFileSync(absoluteCaPath);
         console.log(`Usando certificado CA desde: ${absoluteCaPath}`);
     } else {
-        console.warn(`ADVERTENCIA: Certificado CA especificado en DB_SSL_CA_PATH (${absoluteCaPath}) no encontrado. La conexión SSL podría fallar.`);
+        console.warn(`ADVERTENCIA: Certificado CA especificado en DB_SSL_CA_PATH (${absoluteCaPath}) no encontrado.`);
     }
 } else {
     console.warn(`ADVERTENCIA: DB_SSL_CA_PATH no está definido en .env. Para Aiven, esto es usualmente necesario.`);
@@ -91,7 +94,7 @@ const dbPool = mysql.createPool({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
-    port: process.env.DB_PORT, // Asegúrate de tener DB_PORT en tu .env si Aiven usa uno no estándar
+    port: process.env.DB_PORT,
     waitForConnections: true,
     queueLimit: 0,
     dateStrings: true,
@@ -102,28 +105,25 @@ async function testDbConnection() {
     let connection;
     try {
         connection = await dbPool.getConnection();
-        console.log('¡Conexión exitosa a la base de datos de Aiven!');
+        console.log('¡Conexión exitosa a la base de datos!');
     } catch (error) {
-        console.error('Error al conectar con la base de datos de Aiven:', error);
+        console.error('Error al conectar con la base de datos:', error);
         if (error.code === 'ER_ACCESS_DENIED_ERROR') {
-             console.error('VERIFICA LAS CREDENCIALES DE AIVEN EN TU ARCHIVO .env');
+             console.error('VERIFICA LAS CREDENCIALES EN TU ARCHIVO .env');
         }
         if (error.message.includes('SSL') || error.message.includes('certificate') || error.code === 'HANDSHAKE_SSL_ERROR') {
             console.error('El error parece estar relacionado con la configuración SSL. Verifica el archivo CA (DB_SSL_CA_PATH en .env) y la configuración.');
         }
-        // No salir del proceso en producción automáticamente, mejor loguear y manejar.
-        // process.exit(1);
     } finally {
         if (connection) connection.release();
     }
 }
-testDbConnection(); // Probar conexión al iniciar
+testDbConnection();
 
 const saltRounds = 10;
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
     console.error("ERROR CRÍTICO: Falta JWT_SECRET en las variables de entorno.");
-    // process.exit(1); // Considera si quieres que la app falle al iniciar sin JWT_SECRET
 }
 
 // --- Configuración de Multer ---
@@ -188,7 +188,6 @@ app.get('/', (req, res) => {
 });
 
 // --- RUTAS API ---
-// (Aquí van todas tus rutas API como las tenías, con authenticateToken y authorizeRoles aplicados)
 
 // --- RUTAS DE AUTENTICACIÓN Y USUARIOS ---
 app.post('/api/login', [
@@ -397,6 +396,7 @@ app.get('/api/citas/:id', authenticateToken, [
             WHERE c.id_cita = ?`;
         const [citas] = await connection.query(sqlQuery, [citaId]);
         if (citas.length === 0) { return res.status(404).json({ success: false, message: 'Cita no encontrada.' }); }
+        // MEJORA: Aquí podrías verificar si req.user.id es el cliente de la cita o un admin
         return res.status(200).json({ success: true, cita: citas[0] });
     } catch (error) { console.error(`Error fetching appointment ID: ${citaId}:`, error); return res.status(500).json({ success: false, message: 'Error al obtener los detalles de la cita.' }); }
     finally { if (connection) { connection.release(); } }
@@ -414,6 +414,7 @@ app.put('/api/citas/:id', authenticateToken, [
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const authenticatedUserId = req.user.id;
     const citaId = req.params.id;
+    // MEJORA: Verificar si el usuario autenticado tiene permiso para editar esta cita
     const { fecha_cita, hora_cita, kilometraje, servicio_id, detalle_sintomas } = req.body;
     let connection;
     try {
@@ -438,6 +439,7 @@ app.patch('/api/citas/:id/cancelar', authenticateToken, [
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const authenticatedUserId = req.user.id;
     const citaId = req.params.id;
+    // MEJORA: Verificar si el usuario autenticado tiene permiso para cancelar esta cita
     let connection;
     try {
         connection = await dbPool.getConnection();
@@ -455,6 +457,7 @@ app.patch('/api/citas/:id/completar', authenticateToken, [
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const authenticatedUserId = req.user.id;
     const citaId = req.params.id;
+    // MEJORA: Verificar si el usuario autenticado (ej. un Mecánico o Admin) tiene permiso para completar
     let connection;
     try {
         connection = await dbPool.getConnection();
@@ -739,8 +742,10 @@ app.get('/api/clientes/count', authenticateToken, adminOnly, async (req, res) =>
 // --- INICIO DEL SERVIDOR ---
 app.listen(port, () => {
     console.log(`Servidor backend escuchando en el puerto ${port}`);
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV !== 'production' && port) {
          console.log(`Accede a tu aplicación frontend en http://localhost:${port}/login.html`);
+    } else if (RENDER_EXTERNAL_URL) {
+        console.log(`Accede a tu aplicación en ${RENDER_EXTERNAL_URL}/login.html`);
     }
 });
 
