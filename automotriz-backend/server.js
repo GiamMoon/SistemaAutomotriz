@@ -36,13 +36,16 @@ app.use(
 const allowedOrigins = [
     `http://localhost:${port}`,
     'http://127.0.0.1:5500',
-    // AÑADE AQUÍ LA URL DE TU APP EN RENDER CUANDO LA TENGAS
+    'https://automotriz-app.onrender.com' // <--- CORRECCIÓN: Añadida la URL de Render
 ];
 app.use(cors({
     origin: function (origin, callback) {
+        // Permite solicitudes sin 'origin' (como Postman o apps móviles) o si el origen está en la lista
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
+            // Para depuración, puedes loguear el origen no permitido:
+            console.error(`Error de CORS: Origen no permitido: ${origin}`);
             callback(new Error('Origen no permitido por CORS'));
         }
     },
@@ -72,23 +75,16 @@ app.use(express.static(frontendRootDir));
 console.log(`Sirviendo archivos estáticos generales (HTMLs) desde: ${frontendRootDir}`);
 
 // --- POOL DE CONEXIÓN A LA BASE DE DATOS POSTGRESQL ---
-// Render usualmente provee DATABASE_URL. Si no, usa las variables individuales.
 const dbPool = new Pool({
-    connectionString: process.env.DATABASE_URL, // Preferido para Render
-    // Fallback si DATABASE_URL no está disponible:
-    // host: process.env.DB_HOST,
-    // user: process.env.DB_USER,
-    // password: process.env.DB_PASSWORD,
-    // database: process.env.DB_DATABASE,
-    // port: process.env.DB_PG_PORT || 5432, // Puerto PostgreSQL
-    ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : undefined // Necesario para Render si usa DATABASE_URL con SSL
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : undefined
 });
 
 async function testDbConnection() {
     let client;
     try {
-        client = await dbPool.connect(); // Obtiene un cliente del pool
-        await client.query('SELECT NOW()'); // Prueba una consulta simple
+        client = await dbPool.connect();
+        await client.query('SELECT NOW()');
         console.log('¡Conexión exitosa a la base de datos PostgreSQL!');
     } catch (error) {
         console.error('Error CRÍTICO al conectar con la base de datos PostgreSQL:', error.message);
@@ -100,7 +96,7 @@ async function testDbConnection() {
         }
         process.exit(1);
     } finally {
-        if (client) client.release(); // Libera el cliente de vuelta al pool
+        if (client) client.release();
     }
 }
 testDbConnection();
@@ -155,7 +151,6 @@ app.get('/', (req, res) => {
 
 // --- RUTAS DE CITAS ---
 app.post('/api/citas', [
-    // Validaciones (sin cambios)
     body('nombres_cliente').trim().notEmpty().withMessage('Nombres del cliente son requeridos.').isLength({ max: 100 }).escape(),
     body('apellidos_cliente').trim().notEmpty().withMessage('Apellidos del cliente son requeridos.').isLength({ max: 100 }).escape(),
     body('email_cliente').optional({ checkFalsy: true }).isEmail().withMessage('Email inválido.').normalizeEmail().isLength({ max: 100 }),
@@ -192,9 +187,9 @@ app.post('/api/citas', [
         return res.status(400).json({ success: false, message: 'Debe seleccionar un vehículo existente o añadir uno nuevo.' });
     }
 
-    const client = await dbPool.connect(); // Obtener un cliente para la transacción
+    const client = await dbPool.connect();
     try {
-        await client.query('BEGIN'); // Iniciar transacción
+        await client.query('BEGIN');
 
         let clienteId;
         const clientesExistentesResult = await client.query( 'SELECT id_cliente FROM Clientes WHERE telefono = $1', [telefono_cliente] );
@@ -243,8 +238,6 @@ app.post('/api/citas', [
         }
 
         const estadoInicial = 'Pendiente';
-        // En PostgreSQL, NOW() es la función correcta para la fecha y hora actual.
-        // Las columnas de fecha y hora se manejan bien con los tipos de datos de pg.
         const sqlInsertCita = `
             INSERT INTO Citas (id_cliente, id_vehiculo, fecha_cita, hora_cita, kilometraje, servicio_principal, motivo_detalle, estado, creado_por_id, fecha_creacion)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW()) RETURNING id_cita
@@ -253,24 +246,28 @@ app.post('/api/citas', [
         const citaResult = await client.query(sqlInsertCita, insertParams);
         const citaId = citaResult.rows[0].id_cita;
 
-        await client.query('COMMIT'); // Confirmar transacción
+        await client.query('COMMIT');
         return res.status(201).json({ success: true, message: 'Cita registrada exitosamente.', citaId: citaId });
 
     } catch (error) {
-        await client.query('ROLLBACK'); // Revertir en caso de error
+        if (client) await client.query('ROLLBACK'); // Asegurarse de que client existe antes de rollback
         console.error('Error durante la transacción de base de datos (/api/citas):', error);
-        // Códigos de error de PostgreSQL: '23505' para unique_violation, '23503' para foreign_key_violation
-        if (error.code === '23505') { // unique_violation
+        if (error.code === '23505') {
             return res.status(409).json({ success: false, message: `Error: El valor para un campo único ya existe.` });
-        } else if (error.code === '23503') { // foreign_key_violation
+        } else if (error.code === '23503') {
             return res.status(400).json({ success: false, message: 'Error: El cliente o el vehículo seleccionado no es válido o no existe.' });
         } else {
             return res.status(500).json({ success: false, message: 'Error interno al registrar la cita.' });
         }
     } finally {
-        client.release(); // Siempre liberar el cliente
+        if (client) client.release();
     }
 });
+
+// ... (El resto de tus rutas API, desde app.get('/api/citas') hasta el final, sin cambios) ...
+// COPIA AQUÍ EL RESTO DE TUS RUTAS API (GET /api/citas, LOGIN, REGISTER, SERVICIOS, VEHICULOS, CLIENTES, COUNTS)
+// TAL COMO LAS TENÍAS EN EL server.js ANTERIOR QUE FUNCIONABA CON POSTGRESQL.
+// NO HAY CAMBIOS EN LA LÓGICA DE ESAS RUTAS, SOLO EN LA CONFIGURACIÓN DE CORS.
 
 app.get('/api/citas', [
     query('fecha_inicio').optional().isISO8601().toDate().withMessage('Fecha de inicio inválida.'),
@@ -339,7 +336,6 @@ app.get('/api/citas/:id', [
 });
 
 app.put('/api/citas/:id', [
-    // Validaciones sin cambios
     param('id').isInt({ gt: 0 }).withMessage('ID de cita inválido.'),
     body('fecha_cita').isISO8601().withMessage('Fecha de cita inválida. Debe ser YYYY-MM-DD.'),
     body('hora_cita').matches(/^([01]\d|2[0-3]):([0-5]\d)$/).withMessage('Hora de cita inválida (HH:MM).'),
@@ -363,7 +359,6 @@ app.put('/api/citas/:id', [
     }
 
     try {
-        // fecha_modificacion = NOW() en PostgreSQL
         const sqlQuery = `
             UPDATE Citas SET fecha_cita = $1, hora_cita = $2, kilometraje = $3, servicio_principal = $4, motivo_detalle = $5, modificado_por_id = $6, fecha_modificacion = NOW()
             WHERE id_cita = $7
@@ -371,7 +366,7 @@ app.put('/api/citas/:id', [
         const queryParams = [ fecha_cita, hora_cita, kilometraje || null, servicioParaGuardar, detalle_sintomas || null, userId, citaId ];
         const result = await dbPool.query(sqlQuery, queryParams);
 
-        if (result.rowCount > 0) { // rowCount es el equivalente a affectedRows/changedRows
+        if (result.rowCount > 0) { 
             return res.status(200).json({ success: true, message: 'Cita actualizada exitosamente.' });
         } else {
             return res.status(404).json({ success: false, message: 'Cita no encontrada o sin cambios.' });
@@ -494,14 +489,14 @@ app.post('/api/register', [
         await client.query('COMMIT');
         return res.status(201).json({ success: true, message: 'Usuario registrado exitosamente.' });
     } catch (error) {
-        await client.query('ROLLBACK');
+        if(client) await client.query('ROLLBACK');
         console.error('Error durante el proceso de registro:', error);
-        if (error.code === '23505') { // unique_violation en PostgreSQL
+        if (error.code === '23505') { 
             return res.status(409).json({ success: false, message: `Error: Conflicto de datos duplicados.` });
         }
         return res.status(500).json({ success: false, message: 'Error interno del servidor durante el registro.' });
     } finally {
-        client.release();
+        if(client) client.release();
     }
 });
 
@@ -551,8 +546,6 @@ app.get('/api/servicios', [
         }
         sqlQuery += " ORDER BY nombre_servicio";
         const result = await dbPool.query(sqlQuery);
-        // 'activo' en PostgreSQL es booleano, así que la conversión explícita podría no ser necesaria
-        // pero es bueno asegurarse de que el JSON refleje un booleano.
         const serviciosConBooleano = result.rows.map(s => ({ ...s, activo: Boolean(s.activo) }));
         return res.status(200).json({ success: true, servicios: serviciosConBooleano });
     } catch (error) {
@@ -582,14 +575,14 @@ app.post('/api/servicios', [
         await client.query('COMMIT');
         return res.status(201).json({ success: true, message: 'Servicio añadido exitosamente.', id_servicio: result.rows[0].id_servicio });
     } catch (error) {
-        await client.query('ROLLBACK');
+        if(client) await client.query('ROLLBACK');
         console.error('Error al añadir servicio:', error);
-        if (error.code === '23505') { // unique_violation
+        if (error.code === '23505') { 
             return res.status(409).json({ success: false, message: 'Error: Ya existe un servicio con ese nombre (constraint unique).' });
         }
         return res.status(500).json({ success: false, message: 'Error interno al añadir el servicio.' });
     } finally {
-        client.release();
+        if(client) client.release();
     }
 });
 
@@ -623,14 +616,14 @@ app.put('/api/servicios/:id', [
             return res.status(404).json({ success: false, message: 'Servicio no encontrado.' });
         }
     } catch (error) {
-        await client.query('ROLLBACK');
+        if(client) await client.query('ROLLBACK');
         console.error(`Error al actualizar servicio ID: ${servicioId}:`, error);
-        if (error.code === '23505') { // unique_violation
+        if (error.code === '23505') { 
              return res.status(409).json({ success: false, message: 'Error: Ya existe otro servicio con ese nombre (constraint unique).' });
         }
         return res.status(500).json({ success: false, message: 'Error interno al actualizar el servicio.' });
     } finally {
-        client.release();
+        if(client) client.release();
     }
 });
 
@@ -688,14 +681,14 @@ app.delete('/api/servicios/:id', [
             return res.status(404).json({ success: false, message: 'Servicio no encontrado.' });
         }
     } catch (error) {
-        await client.query('ROLLBACK');
+        if(client) await client.query('ROLLBACK');
         console.error(`Error al eliminar servicio ID: ${servicioId}:`, error);
-        if (error.code === '23503') { // foreign_key_violation
+        if (error.code === '23503') { 
             return res.status(409).json({ success: false, message: 'Error: No se puede eliminar el servicio porque está referenciado en otras tablas.'});
         }
         return res.status(500).json({ success: false, message: 'Error interno al eliminar el servicio.' });
     } finally {
-        client.release();
+        if(client) client.release();
     }
 });
 
@@ -758,7 +751,7 @@ app.get('/api/vehiculos', [
             JOIN Clientes cl ON v.id_cliente = cl.id_cliente `;
         const queryParams = [];
         if (placaQuery) {
-            sqlQuery += ' WHERE v.placa LIKE $1'; // Usar $1 para el primer parámetro
+            sqlQuery += ' WHERE v.placa LIKE $1'; 
             queryParams.push(`${placaQuery}%`);
         }
         sqlQuery += ' ORDER BY cl.apellidos, cl.nombres, v.marca, v.modelo';
@@ -771,7 +764,6 @@ app.get('/api/vehiculos', [
 });
 
 app.post('/api/vehiculos', [
-    // Validaciones sin cambios
     body('placa_vehiculo').trim().notEmpty().withMessage('Placa es requerida.').isLength({min:3, max:10}).toUpperCase().escape(),
     body('marca_vehiculo').trim().notEmpty().withMessage('Marca es requerida.').isLength({max:50}).escape(),
     body('modelo_vehiculo').trim().notEmpty().withMessage('Modelo es requerido.').isLength({max:50}).escape(),
@@ -800,19 +792,18 @@ app.post('/api/vehiculos', [
         await client.query('COMMIT');
         return res.status(201).json({ success: true, message: 'Vehículo añadido exitosamente.', vehiculoId: result.rows[0].id_vehiculo });
     } catch (error) {
-        await client.query('ROLLBACK');
+        if(client) await client.query('ROLLBACK');
         console.error('Error al añadir vehículo:', error);
-        if (error.code === '23505') { // unique_violation
+        if (error.code === '23505') { 
             return res.status(409).json({ success: false, message: `Error: La placa del vehículo ya existe.` });
         }
         return res.status(500).json({ success: false, message: 'Error interno al añadir el vehículo.' });
     } finally {
-        client.release();
+        if(client) client.release();
     }
 });
 
 app.put('/api/vehiculos/:id', [
-    // Validaciones sin cambios
     param('id').isInt({ gt: 0 }).withMessage('ID de vehículo inválido.'),
     body('placa_vehiculo').trim().notEmpty().withMessage('Placa es requerida.').isLength({min:3, max:10}).toUpperCase().escape(),
     body('marca_vehiculo').trim().notEmpty().withMessage('Marca es requerida.').isLength({max:50}).escape(),
@@ -844,14 +835,14 @@ app.put('/api/vehiculos/:id', [
             return res.status(404).json({ success: false, message: 'Vehículo no encontrado o sin cambios.' });
         }
     } catch (error) {
-        await client.query('ROLLBACK');
+        if(client) await client.query('ROLLBACK');
         console.error(`Error al actualizar vehículo ID: ${vehiculoId}:`, error);
-        if (error.code === '23505') { // unique_violation
+        if (error.code === '23505') { 
             return res.status(409).json({ success: false, message: `Error: La placa del vehículo ya existe.` });
         }
         return res.status(500).json({ success: false, message: 'Error interno al actualizar el vehículo.' });
     } finally {
-        client.release();
+        if(client) client.release();
     }
 });
 
@@ -877,14 +868,14 @@ app.delete('/api/vehiculos/:id', [
             return res.status(404).json({ success: false, message: 'Vehículo no encontrado.' });
         }
     } catch (error) {
-        await client.query('ROLLBACK');
+        if(client) await client.query('ROLLBACK');
         console.error(`Error al eliminar vehículo ID: ${vehiculoId}:`, error);
-        if (error.code === '23503') { // foreign_key_violation
+        if (error.code === '23503') { 
             return res.status(409).json({ success: false, message: 'Error: No se puede eliminar el vehículo porque está referenciado en otras tablas.'});
         }
         return res.status(500).json({ success: false, message: 'Error interno al eliminar el vehículo.' });
     } finally {
-        client.release();
+        if(client) client.release();
     }
 });
 
@@ -892,7 +883,7 @@ app.delete('/api/vehiculos/:id', [
 app.get('/api/vehiculos/count', async (req, res) => {
     try {
         const result = await dbPool.query('SELECT COUNT(*) as total FROM Vehiculos');
-        res.json({ success: true, total: parseInt(result.rows[0].total) }); // COUNT devuelve un string, convertir a int
+        res.json({ success: true, total: parseInt(result.rows[0].total) });
     } catch (error) {
         console.error('Error al contar vehículos:', error);
         res.status(500).json({ success: false, message: 'Error interno al contar vehículos.' });
@@ -902,12 +893,13 @@ app.get('/api/vehiculos/count', async (req, res) => {
 app.get('/api/clientes/count', async (req, res) => {
     try {
         const result = await dbPool.query('SELECT COUNT(*) as total FROM Clientes');
-        res.json({ success: true, total: parseInt(result.rows[0].total) }); // COUNT devuelve un string, convertir a int
+        res.json({ success: true, total: parseInt(result.rows[0].total) });
     } catch (error) {
         console.error('Error al contar clientes:', error);
         res.status(500).json({ success: false, message: 'Error interno al contar clientes.' });
     }
 });
+
 
 // --- INICIO DEL SERVIDOR ---
 app.listen(port, '0.0.0.0', () => {
@@ -919,7 +911,7 @@ app.listen(port, '0.0.0.0', () => {
 async function gracefulShutdown() {
     console.log('Cerrando servidor elegantemente...');
     try {
-        await dbPool.end(); // Cierra el pool de conexiones de PostgreSQL
+        await dbPool.end(); 
         console.log('Pool de conexiones de la base de datos PostgreSQL cerrado.');
         process.exit(0);
     } catch (err) {
@@ -927,6 +919,5 @@ async function gracefulShutdown() {
         process.exit(1);
     }
 }
-process.on('SIGINT', gracefulShutdown); // Ctrl+C
-process.on('SIGTERM', gracefulShutdown); // Señal de terminación (ej. de Render)
-
+process.on('SIGINT', gracefulShutdown); 
+process.on('SIGTERM', gracefulShutdown); 
