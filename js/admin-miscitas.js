@@ -3,12 +3,12 @@ document.addEventListener("DOMContentLoaded", () => {
   let isAuthenticatedOnLoad = isAuthenticated;
 
   if (!isAuthenticatedOnLoad || !localCurrentUser) {
-    console.error("Auth Error on DOMContentLoaded. Stopping script execution.");
+   // console.error("Auth Error on DOMContentLoaded. Stopping script execution.");
     return;
   }
 
   document.body.classList.remove("auth-pending");
-  console.log("Auth valid, initializing page script...");
+ // console.log("Auth valid, initializing page script...");
 
   const userAvatarImg = document.getElementById("user-avatar-img");
   const uploadAvatarTrigger = document.getElementById("upload-avatar-trigger");
@@ -115,7 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (userAvatarImg && localCurrentUser.avatarUrl) {
     userAvatarImg.src = localCurrentUser.avatarUrl;
   } else if (userAvatarImg) {
-    console.log("No avatarUrl found, using default placeholder.");
+    //console.log("No avatarUrl found, using default placeholder.");
   }
 
   function showActionFeedback(message, type = "info") {
@@ -204,43 +204,43 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- Función formatDateTime (CON AJUSTE MANUAL DE ZONA HORARIA - PARCHE) ---
+  
   function formatDateTime(dateTimeString) {
     if (!dateTimeString || dateTimeString === "N/A") {
       return "N/A";
     }
 
-    console.log("[formatDateTime] 1. Original dateTimeString:", dateTimeString, "(Tipo:", typeof dateTimeString, ")");
+    //console.log("[formatDateTime] 1. Original dateTimeString:", dateTimeString, "(Tipo:", typeof dateTimeString, ")");
 
     try {
       let dateInput = String(dateTimeString);
 
-      // Paso 1: Normalizar la cadena de entrada para que sea más compatible con new Date()
-      // Reemplazar espacio entre fecha y hora con 'T' si existe
+      
+      
       if (dateInput.includes(' ') && !dateInput.includes('T')) {
         dateInput = dateInput.replace(' ', 'T');
-        console.log("[formatDateTime] 2. Replaced space with T:", dateInput);
+       // console.log("[formatDateTime] 2. Replaced space with T:", dateInput);
       }
 
-      // Paso 2: Asegurar que la cadena sea tratada como UTC si no tiene designador de zona horaria
-      // Regex para detectar si ya tiene 'Z' o un offset como +05:00 o -0300
+      
+      
       const hasTimeZoneSpecifier = /Z|[+-]\d{2}(:?\d{2})?$/.test(dateInput);
 
       if (!hasTimeZoneSpecifier && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(dateInput)) {
-        // Si parece un formato ISO local y no tiene 'Z', la añadimos para que new Date() la trate como UTC.
+        
         dateInput += 'Z';
-        console.log("[formatDateTime] 3. Assumed UTC, appended 'Z':", dateInput);
+       // console.log("[formatDateTime] 3. Assumed UTC, appended 'Z':", dateInput);
       } else if (hasTimeZoneSpecifier) {
-        console.log("[formatDateTime] 3. Input string already has a time zone specifier:", dateInput);
+        //console.log("[formatDateTime] 3. Input string already has a time zone specifier:", dateInput);
       } else {
-        console.warn("[formatDateTime] 3. Input string format is not a recognized ISO-like format or already has TZ. Proceeding as is:", dateInput);
+        //console.warn("[formatDateTime] 3. Input string format is not a recognized ISO-like format or already has TZ. Proceeding as is:", dateInput);
       }
 
       let date = new Date(dateInput);
-      console.log("[formatDateTime] 4. Parsed Date object (before offset - toISOString):", date.toISOString());
+      //console.log("[formatDateTime] 4. Parsed Date object (before offset - toISOString):", date.toISOString());
 
       if (isNaN(date.getTime())) {
-        console.error("[formatDateTime] 6. Invalid Date after parsing:", dateInput);
+        //console.error("[formatDateTime] 6. Invalid Date after parsing:", dateInput);
         return "Fecha inválida";
       }
 
@@ -252,16 +252,16 @@ document.addEventListener("DOMContentLoaded", () => {
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
-        // second: "2-digit", // Descomentar si también quieres mostrar segundos
+        
         hour12: true,
-        timeZone: 'America/Lima' // Forzar la visualización en la zona horaria de Lima
+        timeZone: 'America/Lima' 
       };
       const formattedDate = date.toLocaleString("es-PE", options);
-      console.log("[formatDateTime] 7. Formatted Date (America/Lima):", formattedDate);
+      //console.log("[formatDateTime] 7. Formatted Date (America/Lima):", formattedDate);
       return formattedDate;
 
     } catch (e) {
-      console.error("[formatDateTime] Error crítico formateando fecha/hora:", dateTimeString, e);
+      //console.error("[formatDateTime] Error crítico formateando fecha/hora:", dateTimeString, e);
       return "Fecha inválida";
     }
   }
@@ -285,7 +285,7 @@ document.addEventListener("DOMContentLoaded", () => {
         timeZone: "UTC",
       });
     } catch (e) {
-      console.error("Error formateando fecha:", dateString, e);
+     // console.error("Error formateando fecha:", dateString, e);
       return "Fecha inválida";
     }
   }
@@ -310,20 +310,20 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       return "Hora inválida";
     } catch (e) {
-      console.error("Error formateando hora:", timeString, e);
+     // console.error("Error formateando hora:", timeString, e);
       return "Hora inválida";
     }
   }
 
   async function cargarServicios() {
     if (Object.keys(serviciosCache).length > 0) {
-      console.log("Servicios ya en caché.");
+      //console.log("Servicios ya en caché.");
       populateEditServiceSelect();
       return;
     }
-    console.log("Fetching services from API...");
+  //  console.log("Fetching services from API...");
     try {
-      const response = await fetch("/api/servicios"); // MODIFIED
+      const response = await fetch("/api/servicios"); 
       const data = await response.json();
       if (response.ok && data.success && data.servicios) {
         serviciosCache = data.servicios.reduce((acc, servicio) => {
@@ -334,30 +334,30 @@ document.addEventListener("DOMContentLoaded", () => {
           };
           return acc;
         }, {});
-        console.log("Servicios cargados en caché:", serviciosCache);
+      //  console.log("Servicios cargados en caché:", serviciosCache);
         populateEditServiceSelect();
       } else {
-        console.error("Error loading services from API:", data.message);
+       // console.error("Error loading services from API:", data.message);
         serviciosCache = {};
       }
     } catch (error) {
-      console.error("Network error loading services:", error);
+     // console.error("Network error loading services:", error);
       serviciosCache = {};
     }
   }
 
   function getNombreServicio(servicioIdInput) {
     if (servicioIdInput === null || typeof servicioIdInput === "undefined") {
-      console.log(
-        "DEBUG getNombreServicio: Input es null/undefined, devolviendo N/A"
-      );
+      // console.log(
+      //   "DEBUG getNombreServicio: Input es null/undefined, devolviendo N/A"
+      // );
       return "N/A";
     }
 
     const inputStr = String(servicioIdInput);
 
     if (inputStr === "otros") {
-      console.log("DEBUG getNombreServicio: Input es 'otros'");
+     // console.log("DEBUG getNombreServicio: Input es 'otros'");
       return "Otros servicios / Diagnóstico";
     }
 
@@ -366,50 +366,50 @@ document.addEventListener("DOMContentLoaded", () => {
     const match = inputStr.match(/(\d+)$/);
     if (match && match[1]) {
       servicioId = match[1];
-      console.log(
-        `DEBUG getNombreServicio: ID extraído del string '${inputStr}': ${servicioId}`
-      );
+      // console.log(
+      //   `DEBUG getNombreServicio: ID extraído del string '${inputStr}': ${servicioId}`
+      // );
     } else {
       const potentialId = parseInt(inputStr, 10);
       if (!isNaN(potentialId)) {
         servicioId = String(potentialId);
-        console.log(
-          `DEBUG getNombreServicio: Input '${inputStr}' parece ser ID numérico: ${servicioId}`
-        );
+        // console.log(
+        //   `DEBUG getNombreServicio: Input '${inputStr}' parece ser ID numérico: ${servicioId}`
+        // );
       } else {
-        console.log(
-          `DEBUG getNombreServicio: No se pudo extraer/parsear ID numérico de '${inputStr}'`
-        );
+        // console.log(
+        //   `DEBUG getNombreServicio: No se pudo extraer/parsear ID numérico de '${inputStr}'`
+        // );
       }
     }
 
     if (servicioId !== null) {
       const servicio = serviciosCache[servicioId];
-      console.log(
-        `DEBUG getNombreServicio: Buscando ID '${servicioId}' en caché. Encontrado:`,
-        servicio
-      );
+      // console.log(
+      //   `DEBUG getNombreServicio: Buscando ID '${servicioId}' en caché. Encontrado:`,
+      //   servicio
+      // );
 
       if (
         servicio &&
         typeof servicio === "object" &&
         typeof servicio.nombre === "string"
       ) {
-        console.log(
-          `DEBUG getNombreServicio: Devolviendo nombre de caché: ${servicio.nombre}`
-        );
+        // console.log(
+        //   `DEBUG getNombreServicio: Devolviendo nombre de caché: ${servicio.nombre}`
+        // );
         return servicio.nombre;
       } else {
-        console.warn(
-          `Servicio con ID '${servicioId}' no encontrado o inválido en caché.`
-        );
+        // console.warn(
+        //   `Servicio con ID '${servicioId}' no encontrado o inválido en caché.`
+        // );
         return `Servicio (ID: ${servicioId})`;
       }
     }
 
-    console.warn(
-      `Nombre de servicio no encontrado y no se pudo extraer ID de: ${servicioIdInput}. Devolviendo input original.`
-    );
+    // console.warn(
+    //   `Nombre de servicio no encontrado y no se pudo extraer ID de: ${servicioIdInput}. Devolviendo input original.`
+    // );
     return inputStr;
   }
 
@@ -425,7 +425,7 @@ document.addEventListener("DOMContentLoaded", () => {
     defaultOption.selected = true;
     editSelectServicio.appendChild(defaultOption);
 
-    console.log("Poblando select con servicios activos:", serviciosCache);
+    //console.log("Poblando select con servicios activos:", serviciosCache);
     for (const id in serviciosCache) {
       const servicio = serviciosCache[id];
       if (servicio && servicio.activo) {
@@ -450,7 +450,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       editSelectServicio.value = "";
     }
-    console.log("Select poblado. Valor actual:", editSelectServicio.value);
+   // console.log("Select poblado. Valor actual:", editSelectServicio.value);
   }
 
   function renderizarTabla(tbodyElement, citasData, tablaId) {
@@ -573,9 +573,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-   // --- Función cargarYMostrarCitas (CON NUEVA CORRECCIÓN EN LÓGICA DE CLASIFICACIÓN) ---
+   
    async function cargarYMostrarCitas(fechaInicio = "", fechaFin = "") {
-    await cargarServicios(); // Asegurarse que los servicios están cargados
+    await cargarServicios(); 
     if (!tablaCitasProximasBody || !tablaCitasPasadasBody) return;
 
     const loadingHtml = '<tr><td colspan="8" class="py-4 px-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i> Cargando citas...</td></tr>';
@@ -587,10 +587,10 @@ document.addEventListener("DOMContentLoaded", () => {
     sortState["tabla-pasadas"] = { key: null, direction: "none" };
     updateSortIcons(tablaProximas); updateSortIcons(tablaPasadas);
 
-    // Obtener componentes de la fecha actual UNA VEZ para la comparación
+    
     const todayComp = new Date();
     const todayYear = todayComp.getFullYear();
-    const todayMonth = todayComp.getMonth(); // 0-11
+    const todayMonth = todayComp.getMonth(); 
     const todayDay = todayComp.getDate();
 
     let apiUrl = "/api/citas";
@@ -612,14 +612,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
           if (cita.fecha_cita) {
             try {
-              const fechaISO = cita.fecha_cita.split("T")[0]; // YYYY-MM-DD
+              const fechaISO = cita.fecha_cita.split("T")[0]; 
               const fechaParts = fechaISO.split("-");
               if (fechaParts.length === 3) {
                 const citaYear = parseInt(fechaParts[0], 10);
-                const citaMonth = parseInt(fechaParts[1], 10) - 1; // JS months 0-11
+                const citaMonth = parseInt(fechaParts[1], 10) - 1; 
                 const citaDay = parseInt(fechaParts[2], 10);
 
-                // *** CORRECCIÓN v3: Comparación directa de componentes ***
+                
                 if (!isNaN(citaYear) && !isNaN(citaMonth) && !isNaN(citaDay)) {
                     fechaCitaValida = true;
                     if (citaYear > todayYear) {
@@ -633,17 +633,17 @@ document.addEventListener("DOMContentLoaded", () => {
                             }
                         }
                     }
-                    // Si ninguna condición se cumple, isTodayOrFuture permanece false (pasado)
+                    
                 }
               }
             } catch (e) {
-              console.error("Error parsing cita.fecha_cita for comparison:", cita.fecha_cita, e);
+            //  console.error("Error parsing cita.fecha_cita for comparison:", cita.fecha_cita, e);
               fechaCitaValida = false;
             }
           }
           const estadoCita = cita.estado || "Pendiente";
 
-          // Lógica de clasificación REVISADA v3
+          
           if (estadoCita === "Pendiente" && fechaCitaValida && isTodayOrFuture) {
             citasProximasData.push(cita);
           } else {
@@ -653,12 +653,12 @@ document.addEventListener("DOMContentLoaded", () => {
         renderizarTabla(tablaCitasProximasBody, citasProximasData, "tabla-proximas");
         renderizarTabla(tablaCitasPasadasBody, citasPasadasData, "tabla-pasadas");
       } else {
-        console.error("Error fetching appointments:", data.message);
+      //  console.error("Error fetching appointments:", data.message);
         const errorMsg = '<tr><td colspan="8" class="py-4 px-4 text-center text-red-500">Error al cargar citas.</td></tr>';
         tablaCitasProximasBody.innerHTML = errorMsg; tablaCitasPasadasBody.innerHTML = errorMsg;
       }
     } catch (error) {
-      console.error("Network error fetching appointments:", error);
+    //  console.error("Network error fetching appointments:", error);
       const errorMsg = '<tr><td colspan="8" class="py-4 px-4 text-center text-red-500">Error de red al cargar citas.</td></tr>';
       tablaCitasProximasBody.innerHTML = errorMsg; tablaCitasPasadasBody.innerHTML = errorMsg;
     }
@@ -675,7 +675,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const payload = { userId: localCurrentUser?.id };
       const response = await fetch(
-        `/api/citas/${citaId}/cancelar`, // MODIFIED
+        `/api/citas/${citaId}/cancelar`, 
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -696,7 +696,7 @@ document.addEventListener("DOMContentLoaded", () => {
         );
       }
     } catch (error) {
-      console.error("Error de red al cancelar cita:", error);
+     // console.error("Error de red al cancelar cita:", error);
       showActionFeedback("Error de conexión al intentar cancelar.", "error");
     }
   }
@@ -708,7 +708,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const payload = { userId: localCurrentUser?.id };
       const response = await fetch(
-        `/api/citas/${citaId}/completar`, // MODIFIED
+        `/api/citas/${citaId}/completar`, 
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -729,30 +729,30 @@ document.addEventListener("DOMContentLoaded", () => {
         );
       }
     } catch (error) {
-      console.error("Error de red al completar cita:", error);
-      showActionFeedback(
-        "Error de conexión al intentar completar la cita.",
-        "error"
-      );
+      // console.error("Error de red al completar cita:", error);
+      // showActionFeedback(
+      //   "Error de conexión al intentar completar la cita.",
+      //   "error"
+      // );
     }
   }
 
   function mostrarDetallesCita(citaId) {
-    console.log(`DEBUG: Intentando mostrar detalles para cita ID: ${citaId}`);
+  //  console.log(`DEBUG: Intentando mostrar detalles para cita ID: ${citaId}`);
 
     const citaSeleccionada = todasLasCitas.find((c) => c.id_cita == citaId);
     if (!citaSeleccionada) {
-      console.error(
-        "DEBUG: Cita no encontrada en caché para detalles:",
-        citaId
-      );
+      // console.error(
+      //   "DEBUG: Cita no encontrada en caché para detalles:",
+      //   citaId
+      // );
       showActionFeedback(
         "Error: No se pudieron cargar los detalles de la cita.",
         "error"
       );
       return;
     }
-    console.log("DEBUG: Datos encontrados para detalles:", citaSeleccionada);
+    //console.log("DEBUG: Datos encontrados para detalles:", citaSeleccionada);
 
     let fechaFormateadaModal = formatDate(citaSeleccionada.fecha_cita);
     let horaFormateadaModal = formatTime(citaSeleccionada.hora_cita);
@@ -803,7 +803,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (modalOverlay) modalOverlay.classList.remove("hidden");
     if (citaDetailsModal) citaDetailsModal.classList.remove("hidden");
-    console.log("DEBUG: Modal de detalles mostrado.");
+   // console.log("DEBUG: Modal de detalles mostrado.");
   }
 
   function cerrarModalDetalles() {
@@ -812,9 +812,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function abrirModalEdicion(citaId) {
-    console.log(
-      `DEBUG: Intentando abrir modal de edición para cita ID: ${citaId}`
-    );
+    // console.log(
+    //   `DEBUG: Intentando abrir modal de edición para cita ID: ${citaId}`
+    // );
     showEditFeedback("Cargando datos de la cita...", "loading");
     await cargarServicios();
 
@@ -822,9 +822,9 @@ document.addEventListener("DOMContentLoaded", () => {
       let cita = todasLasCitas.find((c) => c.id_cita == citaId);
 
       if (!cita) {
-        console.warn("Cita no encontrada en caché local, buscando en API...");
+       // console.warn("Cita no encontrada en caché local, buscando en API...");
         const response = await fetch(
-          `/api/citas/${citaId}` // MODIFIED
+          `/api/citas/${citaId}` 
         );
         const result = await response.json();
         if (response.ok && result.success && result.cita) {
@@ -836,7 +836,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
 
-      console.log("DEBUG: Datos para editar cargados:", cita);
+     // console.log("DEBUG: Datos para editar cargados:", cita);
 
       editCitaIdInput.value = cita.id_cita;
 
@@ -869,7 +869,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (editSelectServicio.querySelector('option[value="otros"]')) {
           editSelectServicio.value = "otros";
           servicioSeleccionado = true;
-          console.log("DEBUG: Preseleccionado 'Otros servicios'");
+        //  console.log("DEBUG: Preseleccionado 'Otros servicios'");
         }
       } else if (
         servicioIdActual &&
@@ -882,34 +882,34 @@ document.addEventListener("DOMContentLoaded", () => {
         if (optionElement) {
           editSelectServicio.value = servicioIdActual;
           servicioSeleccionado = true;
-          console.log(
-            `DEBUG: Preseleccionado servicio activo ID: ${servicioIdActual}`
-          );
+          // console.log(
+          //   `DEBUG: Preseleccionado servicio activo ID: ${servicioIdActual}`
+          // );
         } else {
-          console.log(
-            `DEBUG: El servicio actual (ID: ${servicioIdActual}) está inactivo o no existe en el select, no se preselecciona.`
-          );
+          // console.log(
+          //   `DEBUG: El servicio actual (ID: ${servicioIdActual}) está inactivo o no existe en el select, no se preselecciona.`
+          // );
         }
       }
 
       if (!servicioSeleccionado) {
         editSelectServicio.value = "";
-        console.log(
-          "DEBUG: No se preseleccionó ningún servicio (o no aplica/está inactivo). Se deja '-- Seleccionar --'."
-        );
+        // console.log(
+        //   "DEBUG: No se preseleccionó ningún servicio (o no aplica/está inactivo). Se deja '-- Seleccionar --'."
+        // );
       }
 
       clearModalValidationErrors();
       editFeedbackMessageDiv.style.display = "none";
       if (modalEditOverlay) modalEditOverlay.classList.remove("hidden");
       if (citaEditModal) citaEditModal.classList.remove("hidden");
-      console.log("DEBUG: Modal de edición abierto y rellenado.");
+      //console.log("DEBUG: Modal de edición abierto y rellenado.");
     } catch (error) {
-      console.error("DEBUG: Error al obtener detalles para editar:", error);
-      showActionFeedback(
-        error.message || "Error al cargar datos para editar.",
-        "error"
-      );
+      // console.error("DEBUG: Error al obtener detalles para editar:", error);
+      // showActionFeedback(
+      //   error.message || "Error al cargar datos para editar.",
+      //   "error"
+      // );
       showEditFeedback("Error al cargar los datos de la cita.", "error");
     }
   }
@@ -963,11 +963,11 @@ document.addEventListener("DOMContentLoaded", () => {
           return "";
       }
     } catch (e) {
-      console.error(
-        `Error getting sort value for key ${sortKey} from cita:`,
-        cita,
-        e
-      );
+      // console.error(
+      //   `Error getting sort value for key ${sortKey} from cita:`,
+      //   cita,
+      //   e
+      // );
       return "";
     }
   }
@@ -1033,15 +1033,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function handleAvatarUpload(event) {
-    console.log("DEBUG: Avatar file input changed.");
+   // console.log("DEBUG: Avatar file input changed.");
     const file = event.target.files[0];
     if (!file) {
-      console.log("DEBUG: No file selected.");
+    //  console.log("DEBUG: No file selected.");
       return;
     }
 
     const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
-    const maxSize = 2 * 1024 * 1024; // 2MB
+    const maxSize = 2 * 1024 * 1024; 
     if (!allowedTypes.includes(file.type)) {
       showActionFeedback(
         "Error: Tipo de archivo no permitido (solo JPG, PNG, GIF).",
@@ -1064,21 +1064,21 @@ document.addEventListener("DOMContentLoaded", () => {
     formData.append("avatar", file);
 
     try {
-      const apiUrl = `/api/users/${localCurrentUser.id}/avatar`; // MODIFIED
-      console.log(`DEBUG: Sending POST to ${apiUrl} for avatar upload.`);
+      const apiUrl = `/api/users/${localCurrentUser.id}/avatar`; 
+     // console.log(`DEBUG: Sending POST to ${apiUrl} for avatar upload.`);
       const response = await fetch(apiUrl, {
         method: "POST",
         body: formData,
-        // No 'Content-Type' header for FormData, browser sets it with boundary
+        
       });
       const result = await response.json();
-      console.log("DEBUG: Server response (avatar upload):", result);
+     // console.log("DEBUG: Server response (avatar upload):", result);
 
       if (response.ok && result.success && result.avatarUrl) {
-        console.log(
-          "DEBUG: Avatar uploaded successfully. New URL:",
-          result.avatarUrl
-        );
+        // console.log(
+        //   "DEBUG: Avatar uploaded successfully. New URL:",
+        //   result.avatarUrl
+        // );
         if (userAvatarImg) {
           userAvatarImg.src = result.avatarUrl;
         }
@@ -1086,25 +1086,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
         localCurrentUser.avatarUrl = result.avatarUrl;
         localStorage.setItem("userData", JSON.stringify(localCurrentUser));
-        console.log(
-          "DEBUG: User data updated in localStorage with new avatarUrl."
-        );
+        // console.log(
+        //   "DEBUG: User data updated in localStorage with new avatarUrl."
+        // );
       } else {
-        console.error(
-          "Error in server response (avatar upload):",
-          result.message || response.statusText
-        );
+        // console.error(
+        //   "Error in server response (avatar upload):",
+        //   result.message || response.statusText
+        // );
         showActionFeedback(
           result.message || "Error al subir la foto.",
           "error"
         );
       }
     } catch (error) {
-      console.error("Network error during avatar upload:", error);
+     // console.error("Network error during avatar upload:", error);
       showActionFeedback("Error de conexión al subir la foto.", "error");
     } finally {
       avatarUploadInput.value = "";
-      console.log("DEBUG: Avatar file input reset.");
+     // console.log("DEBUG: Avatar file input reset.");
     }
   }
 
@@ -1186,49 +1186,49 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleTableActions(event) {
-    console.log("DEBUG: Clic en tabla citas detectado.");
+   // console.log("DEBUG: Clic en tabla citas detectado.");
     const targetButton = event.target.closest("button.action-button");
 
     if (!targetButton) {
-      console.log("DEBUG: Clic no fue en un botón de acción.");
+     // console.log("DEBUG: Clic no fue en un botón de acción.");
       return;
     }
 
     const citaId = targetButton.dataset.id;
     if (!citaId) {
-      console.error("DEBUG: Botón sin data-id clickeado.");
+     // console.error("DEBUG: Botón sin data-id clickeado.");
       return;
     }
 
     const nombreCliente = targetButton.dataset.clienteNombre || "este cliente";
-    console.log(`DEBUG: Botón de acción clickeado para Cita ID: ${citaId}`);
+   // console.log(`DEBUG: Botón de acción clickeado para Cita ID: ${citaId}`);
 
     if (targetButton.classList.contains("btn-view")) {
-      console.log("DEBUG: Botón Ver presionado.");
+    //  console.log("DEBUG: Botón Ver presionado.");
       mostrarDetallesCita(citaId);
     } else if (targetButton.classList.contains("btn-edit")) {
-      console.log("DEBUG: Botón Editar presionado.");
+    //  console.log("DEBUG: Botón Editar presionado.");
       abrirModalEdicion(citaId);
     } else if (targetButton.classList.contains("btn-complete")) {
-      console.log("DEBUG: Botón Completar presionado.");
+    //  console.log("DEBUG: Botón Completar presionado.");
       completarCita(citaId, nombreCliente);
     } else if (targetButton.classList.contains("btn-cancel")) {
-      console.log("DEBUG: Botón Cancelar presionado.");
+     // console.log("DEBUG: Botón Cancelar presionado.");
       cancelarCita(citaId, nombreCliente);
     } else {
-      console.log(
-        "DEBUG: Botón clickeado no reconocido:",
-        targetButton.classList
-      );
+      // console.log(
+      //   "DEBUG: Botón clickeado no reconocido:",
+      //   targetButton.classList
+      // );
     }
   }
 
   async function handleEditFormSubmit(event) {
-    console.log("DEBUG: Submit event capturado en editCitaForm!");
+   // console.log("DEBUG: Submit event capturado en editCitaForm!");
     event.preventDefault();
     clearModalValidationErrors();
     showEditFeedback("", "clear");
-    console.log("DEBUG: Validando formulario de edición...");
+  //  console.log("DEBUG: Validando formulario de edición...");
 
     let formValid = true;
     editCitaForm
@@ -1241,9 +1241,9 @@ document.addEventListener("DOMContentLoaded", () => {
             .querySelector(".error-message");
           if (errorSpan) errorSpan.classList.remove("hidden");
           formValid = false;
-          console.log(
-            `DEBUG: Edición - Validación fallida: ${field.id || field.name}`
-          );
+          // console.log(
+          //   `DEBUG: Edición - Validación fallida: ${field.id || field.name}`
+          // );
         } else {
           field.classList.remove("is-invalid", "border-red-500");
           const errorSpan = field
@@ -1258,11 +1258,11 @@ document.addEventListener("DOMContentLoaded", () => {
         "Por favor, complete todos los campos requeridos.",
         "error"
       );
-      console.log("DEBUG: Edición - Formulario NO válido.");
+      //console.log("DEBUG: Edición - Formulario NO válido.");
       return;
     }
 
-    console.log("DEBUG: Edición - Formulario VÁLIDO.");
+   // console.log("DEBUG: Edición - Formulario VÁLIDO.");
     modalEditSaveButton.disabled = true;
     showEditFeedback("Guardando cambios...", "loading");
 
@@ -1278,11 +1278,11 @@ document.addEventListener("DOMContentLoaded", () => {
       userId: localCurrentUser.id,
     };
 
-    console.log(`DEBUG: Enviando PUT a /api/citas/${citaId}`, updatedData);
+   // console.log(`DEBUG: Enviando PUT a /api/citas/${citaId}`, updatedData);
 
     try {
       const response = await fetch(
-        `/api/citas/${citaId}`, // MODIFIED
+        `/api/citas/${citaId}`, 
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -1290,11 +1290,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       );
       const result = await response.json();
-      console.log(
-        "DEBUG: Edición - Respuesta backend:",
-        response.status,
-        result
-      );
+      // console.log(
+      //   "DEBUG: Edición - Respuesta backend:",
+      //   response.status,
+      //   result
+      // );
 
       if (response.ok && result.success) {
         showEditFeedback("Cita actualizada exitosamente.", "success");
@@ -1311,7 +1311,7 @@ document.addEventListener("DOMContentLoaded", () => {
         modalEditSaveButton.disabled = false;
       }
     } catch (error) {
-      console.error("DEBUG: Edición - Error de red:", error);
+     // console.error("DEBUG: Edición - Error de red:", error);
       showEditFeedback("Error de conexión al guardar.", "error");
       modalEditSaveButton.disabled = false;
     }
@@ -1320,7 +1320,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function inicializarPagina() {
     await cargarServicios();
     cargarYMostrarCitas();
-    console.log("Página Mis Citas cargada y lógica inicializada.");
+  //  console.log("Página Mis Citas cargada y lógica inicializada.");
   }
 
   inicializarPagina();

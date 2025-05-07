@@ -1,25 +1,25 @@
 document.addEventListener("DOMContentLoaded", () => {
-    console.log("DEBUG: DOMContentLoaded event fired.");
+  //  console.log("DEBUG: DOMContentLoaded event fired.");
   
-    // Asumiendo que currentUserData y isAuthenticatedInHead se definen globalmente
-    // por un script previo (ej. auto-check-admin-servicios.js)
+    
+    
     let localCurrentUser = currentUserData;
     let isAuthenticatedOnLoad = isAuthenticatedInHead;
   
     if (!isAuthenticatedOnLoad || !localCurrentUser) {
-      console.error(
-        "ERROR: Autenticación fallida o datos de usuario no disponibles. Redirigiendo."
-      );
+      // console.error(
+      //   "ERROR: Autenticación fallida o datos de usuario no disponibles. Redirigiendo."
+      // );
       if (!window.location.pathname.endsWith("login.html")) {
         window.location.replace("login.html");
       }
-      return; // Detiene la ejecución si no está autenticado
+      return; 
     }
   
-    document.body.classList.remove("auth-pending"); // Muestra el contenido de la página
-    console.log("DEBUG: Usuario autenticado, inicializando script principal...");
+    document.body.classList.remove("auth-pending"); 
+   // console.log("DEBUG: Usuario autenticado, inicializando script principal...");
   
-    // Obtención de elementos del DOM
+    
     const userAvatarImg = document.getElementById("user-avatar-img");
     const uploadAvatarTrigger = document.getElementById("upload-avatar-trigger");
     const avatarUploadInput = document.getElementById("avatar-upload-input");
@@ -37,14 +37,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const tablaServicios = document.getElementById("tabla-servicios");
     const tablaServiciosBody = document.getElementById("tabla-servicios-body");
     const btnAddServicio = document.getElementById("btn-add-servicio");
-    // const actionFeedbackMessageDiv = document.getElementById( // Parece no usarse, considerar eliminar si es así
-    //   "action-feedback-message"
-    // );
+    
+    
+    
     const globalFeedbackContainer = document.getElementById(
       "global-feedback-container"
     );
   
-    // Elementos del Modal de Servicio
+    
     const modalServicioOverlay = document.getElementById(
       "modal-servicio-overlay"
     );
@@ -63,14 +63,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const servicioFeedbackMessageDiv = document.getElementById(
       "servicio-feedback-message"
     );
-    const servicioIdInput = document.getElementById("servicio-id"); // Hidden input para ID en edición
+    const servicioIdInput = document.getElementById("servicio-id"); 
     const servicioNombreInput = document.getElementById("servicio-nombre");
   
-    let allServices = []; // Caché para todos los servicios cargados
-    let editMode = false; // Flag para saber si el modal está en modo edición o creación
-    let servicioSortState = { key: null, direction: "none" }; // Estado del ordenamiento de la tabla
+    let allServices = []; 
+    let editMode = false; 
+    let servicioSortState = { key: null, direction: "none" }; 
   
-    // Configuración inicial de la UI con datos del usuario
+    
     if (userNameDisplay)
       userNameDisplay.textContent =
         localCurrentUser.nombre || localCurrentUser.username;
@@ -80,15 +80,15 @@ document.addEventListener("DOMContentLoaded", () => {
       profileNameDisplay.textContent =
         localCurrentUser.nombre || localCurrentUser.username;
     if (userAvatarImg && localCurrentUser.avatarUrl) {
-      console.log(
-        "Setting avatar from localStorage:",
-        localCurrentUser.avatarUrl
-      );
+      // console.log(
+      //   "Setting avatar from localStorage:",
+      //   localCurrentUser.avatarUrl
+      // );
       userAvatarImg.src = localCurrentUser.avatarUrl;
     } else if (userAvatarImg) {
-      console.log(
-        "No avatarUrl found in localStorage, using default placeholder."
-      );
+      // console.log(
+      //   "No avatarUrl found in localStorage, using default placeholder."
+      // );
     }
   
     /**
@@ -99,22 +99,22 @@ document.addEventListener("DOMContentLoaded", () => {
      * @returns {HTMLElement|null} El elemento del mensaje de feedback o null.
      */
     function showActionFeedback(message, type = "info", duration = 4000) {
-      let feedbackContainer = globalFeedbackContainer; // Usar la variable global ya definida
+      let feedbackContainer = globalFeedbackContainer; 
       if (!feedbackContainer) {
-        console.warn("Contenedor de feedback global no encontrado en el DOM. Creando uno nuevo.");
+        //console.warn("Contenedor de feedback global no encontrado en el DOM. Creando uno nuevo.");
         feedbackContainer = document.createElement("div");
-        feedbackContainer.id = "global-feedback-container"; // Asegurar que tenga el ID esperado
-        // Estilos para el contenedor de feedback global
+        feedbackContainer.id = "global-feedback-container"; 
+        
         feedbackContainer.style.position = "fixed";
         feedbackContainer.style.bottom = "1rem";
         feedbackContainer.style.right = "1rem";
-        feedbackContainer.style.zIndex = "1000"; // Asegurar que esté por encima de otros elementos
+        feedbackContainer.style.zIndex = "1000"; 
         feedbackContainer.style.display = "flex";
         feedbackContainer.style.flexDirection = "column";
         feedbackContainer.style.gap = "0.5rem";
         feedbackContainer.style.alignItems = "flex-end";
         document.body.appendChild(feedbackContainer);
-        // globalFeedbackContainer = feedbackContainer; // Reasignar si es necesario, aunque ya está en el scope
+        
       }
   
       const feedbackDiv = document.createElement("div");
@@ -132,24 +132,24 @@ document.addEventListener("DOMContentLoaded", () => {
           bgColor = "bg-blue-100 border border-blue-400 text-blue-700";
           iconClass = "fas fa-spinner fa-spin";
           break;
-        default: // info
+        default: 
           bgColor = "bg-gray-100 border border-gray-400 text-gray-700";
           iconClass = "fas fa-info-circle";
           break;
       }
-      // Aplicar estilos Tailwind y personalizados para el mensaje
+      
       feedbackDiv.className = `global-feedback-message p-3 rounded-md shadow-lg flex items-center text-sm ${bgColor}`;
       feedbackDiv.style.transition = "opacity 0.5s ease-out, transform 0.5s ease-out";
-      feedbackDiv.style.opacity = "0"; // Inicia transparente para fade-in
-      feedbackDiv.style.transform = "translateY(20px)"; // Inicia abajo para slide-in
+      feedbackDiv.style.opacity = "0"; 
+      feedbackDiv.style.transform = "translateY(20px)"; 
   
       feedbackDiv.innerHTML = `<span class="inline-block align-middle mr-2"><i class="${iconClass}"></i></span><span class="inline-block align-middle">${message}</span>`;
       feedbackContainer.appendChild(feedbackDiv);
   
-      // Forzar reflow para que la animación funcione
+      
       void feedbackDiv.offsetWidth;
   
-      // Animación de entrada
+      
       feedbackDiv.style.opacity = "1";
       feedbackDiv.style.transform = "translateY(0)";
   
@@ -159,13 +159,13 @@ document.addEventListener("DOMContentLoaded", () => {
           feedbackDiv.style.opacity = "0";
           feedbackDiv.style.transform = "translateY(20px)";
           feedbackDiv.addEventListener("transitionend", () => feedbackDiv.remove());
-          // Fallback por si transitionend no se dispara
+          
           setTimeout(() => {
             if (feedbackDiv.parentNode) feedbackDiv.remove();
-          }, duration + 500); // Un poco más que la duración para asegurar
+          }, duration + 500); 
         }, duration);
       }
-      return feedbackDiv; // Devuelve el div para poder quitarlo manualmente si es 'loading'
+      return feedbackDiv; 
     }
   
     /**
@@ -196,12 +196,12 @@ document.addEventListener("DOMContentLoaded", () => {
           bgColor = "bg-blue-100 border border-blue-400 text-blue-700";
           iconClass = "fas fa-spinner fa-spin";
           break;
-        default: // info
+        default: 
           bgColor = "bg-gray-100 border border-gray-400 text-gray-700";
           iconClass = "fas fa-info-circle";
           break;
       }
-      feedbackDiv.className = `px-4 py-3 rounded relative text-sm ${bgColor} mb-4`; // Añadido mb-4
+      feedbackDiv.className = `px-4 py-3 rounded relative text-sm ${bgColor} mb-4`; 
       feedbackDiv.innerHTML = `<span class="inline-block align-middle mr-2"><i class="${iconClass}"></i></span><span class="inline-block align-middle">${message}</span>`;
       feedbackDiv.style.display = "block";
   
@@ -232,10 +232,10 @@ document.addEventListener("DOMContentLoaded", () => {
      */
     function renderizarTablaServicios(serviciosData) {
       if (!tablaServiciosBody) {
-        console.error("ERROR: tablaServiciosBody no encontrado en el DOM.");
+       // console.error("ERROR: tablaServiciosBody no encontrado en el DOM.");
         return;
       }
-      tablaServiciosBody.innerHTML = ""; // Limpiar tabla existente
+      tablaServiciosBody.innerHTML = ""; 
   
       if (!serviciosData || serviciosData.length === 0) {
         tablaServiciosBody.innerHTML =
@@ -245,16 +245,16 @@ document.addEventListener("DOMContentLoaded", () => {
   
       serviciosData.forEach((s) => {
         const tr = document.createElement("tr");
-        tr.classList.add("hover:bg-gray-50", "transition-colors", "duration-150"); // Estilo hover
+        tr.classList.add("hover:bg-gray-50", "transition-colors", "duration-150"); 
   
-        const isActive = s.activo; // Asumir que 'activo' es booleano o 0/1
+        const isActive = s.activo; 
         const estadoTexto = isActive ? "Activo" : "Inactivo";
         const estadoClase = isActive
           ? "bg-green-100 text-green-800"
           : "bg-red-100 text-red-800";
         const toggleButtonText = isActive ? "Desactivar" : "Activar";
         const toggleButtonIcon = isActive ? "fa-toggle-off" : "fa-toggle-on";
-        // Clases específicas para los botones de toggle para identificarlos mejor
+        
         const toggleButtonClass = isActive
           ? "btn-toggle-active text-yellow-600 hover:text-yellow-800"
           : "btn-toggle-inactive text-green-600 hover:text-green-800";
@@ -276,37 +276,37 @@ document.addEventListener("DOMContentLoaded", () => {
      * Carga los servicios desde la API y los renderiza en la tabla.
      */
     async function cargarServicios() {
-      console.log("DEBUG: Iniciando cargarServicios...");
+     // console.log("DEBUG: Iniciando cargarServicios...");
       if (!tablaServiciosBody) {
-        console.error("ERROR: tablaServiciosBody no encontrado en el DOM al cargar servicios.");
+       // console.error("ERROR: tablaServiciosBody no encontrado en el DOM al cargar servicios.");
         return;
       }
       const loadingHtml =
         '<tr><td colspan="4" class="py-4 px-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i> Cargando servicios...</td></tr>';
       tablaServiciosBody.innerHTML = loadingHtml;
   
-      allServices = []; // Limpiar caché local
-      servicioSortState = { key: null, direction: "none" }; // Resetear estado de ordenamiento
-      updateServicioSortIcons(); // Actualizar iconos de ordenamiento
+      allServices = []; 
+      servicioSortState = { key: null, direction: "none" }; 
+      updateServicioSortIcons(); 
   
       try {
-        const response = await fetch("/api/servicios"); // MODIFIED
+        const response = await fetch("/api/servicios"); 
         const data = await response.json();
-        console.log("DEBUG: Respuesta de /api/servicios:", data);
+        //console.log("DEBUG: Respuesta de /api/servicios:", data);
   
         if (response.ok && data.success && data.servicios) {
           allServices = data.servicios;
           renderizarTablaServicios(allServices);
         } else {
-          console.error(
-            "Error al obtener servicios:",
-            data ? data.message : "Respuesta no OK o formato inesperado"
-          );
+          // console.error(
+          //   "Error al obtener servicios:",
+          //   data ? data.message : "Respuesta no OK o formato inesperado"
+          // );
           tablaServiciosBody.innerHTML =
             '<tr><td colspan="4" class="py-4 px-4 text-center text-red-500">Error al cargar servicios. Verifique la consola.</td></tr>';
         }
       } catch (error) {
-        console.error("Error de red al obtener servicios:", error);
+        //console.error("Error de red al obtener servicios:", error);
         tablaServiciosBody.innerHTML =
           '<tr><td colspan="4" class="py-4 px-4 text-center text-red-500">Error de conexión al intentar cargar servicios.</td></tr>';
       }
@@ -320,30 +320,30 @@ document.addEventListener("DOMContentLoaded", () => {
     function openServicioModal(isEditMode = false, servicioData = null) {
       editMode = isEditMode;
       if (!servicioForm || !modalServicioTitle || !servicioIdInput || !servicioNombreInput || !modalServicioSaveButton || !modalServicioOverlay || !servicioModal) {
-        console.error("ERROR: Uno o más elementos del modal no fueron encontrados en el DOM.");
+       // console.error("ERROR: Uno o más elementos del modal no fueron encontrados en el DOM.");
         return;
       }
-      servicioForm.reset(); // Limpiar formulario
-      clearModalValidationErrors(); // Limpiar errores de validación previos
-      showServicioModalFeedback("", "clear"); // Limpiar mensajes de feedback previos
-      modalServicioSaveButton.disabled = false; // Habilitar botón de guardar
+      servicioForm.reset(); 
+      clearModalValidationErrors(); 
+      showServicioModalFeedback("", "clear"); 
+      modalServicioSaveButton.disabled = false; 
   
       if (isEditMode && servicioData) {
         modalServicioTitle.textContent = "Editar Servicio";
-        servicioIdInput.value = servicioData.id_servicio; // Campo oculto con el ID
+        servicioIdInput.value = servicioData.id_servicio; 
         servicioNombreInput.value = servicioData.nombre_servicio || "";
         modalServicioSaveButton.innerHTML =
           '<i class="fas fa-save mr-2"></i> Actualizar Servicio';
       } else {
         modalServicioTitle.textContent = "Añadir Nuevo Servicio";
-        servicioIdInput.value = ""; // ID vacío para nuevo servicio
+        servicioIdInput.value = ""; 
         modalServicioSaveButton.innerHTML =
           '<i class="fas fa-plus mr-2"></i> Añadir Servicio';
       }
-      // Mostrar modal
+      
       modalServicioOverlay.classList.remove("hidden");
       servicioModal.classList.remove("hidden");
-      servicioNombreInput.focus(); // Poner foco en el campo de nombre
+      servicioNombreInput.focus(); 
     }
   
     /**
@@ -352,7 +352,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function closeServicioModal() {
       if (modalServicioOverlay) modalServicioOverlay.classList.add("hidden");
       if (servicioModal) servicioModal.classList.add("hidden");
-      if (servicioForm) servicioForm.reset(); // Limpiar formulario al cerrar
+      if (servicioForm) servicioForm.reset(); 
       clearModalValidationErrors();
       showServicioModalFeedback("", "clear");
     }
@@ -371,16 +371,16 @@ document.addEventListener("DOMContentLoaded", () => {
           case "nombre":
             return (servicio.nombre_servicio || "").toLowerCase();
           case "estado":
-            return servicio.activo ? 1 : 0; // 1 para Activo, 0 para Inactivo para ordenar
+            return servicio.activo ? 1 : 0; 
           default:
             return "";
         }
       } catch (e) {
-        console.error(
-          `Error getting sort value for key ${sortKey} from servicio:`,
-          servicio,
-          e
-        );
+        // console.error(
+        //   `Error getting sort value for key ${sortKey} from servicio:`,
+        //   servicio,
+        //   e
+        // );
         return "";
       }
     }
@@ -390,16 +390,16 @@ document.addEventListener("DOMContentLoaded", () => {
      * @param {string} sortKey - La clave por la cual ordenar.
      */
     function sortServicioTable(sortKey) {
-      if (!allServices || allServices.length <= 1) return; // No hay nada que ordenar
+      if (!allServices || allServices.length <= 1) return; 
   
       let currentDirection = servicioSortState.direction;
       let newDirection;
   
       if (servicioSortState.key === sortKey) {
-        // Si se hace clic en la misma columna, invertir dirección
+        
         newDirection = currentDirection === "asc" ? "desc" : "asc";
       } else {
-        // Si se hace clic en una nueva columna, ordenar ascendentemente por defecto
+        
         newDirection = "asc";
       }
       servicioSortState = { key: sortKey, direction: newDirection };
@@ -416,8 +416,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return newDirection === "desc" ? comparison * -1 : comparison;
       });
   
-      renderizarTablaServicios(allServices); // Volver a renderizar la tabla ordenada
-      updateServicioSortIcons(); // Actualizar los iconos de ordenamiento en las cabeceras
+      renderizarTablaServicios(allServices); 
+      updateServicioSortIcons(); 
     }
   
     /**
@@ -431,8 +431,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const iconSpan = th.querySelector(".sort-icon i");
         if (!iconSpan) return;
   
-        th.classList.remove("sort-asc", "sort-desc"); // Limpiar clases de ordenamiento previas
-        iconSpan.className = "fas fa-sort"; // Icono por defecto
+        th.classList.remove("sort-asc", "sort-desc"); 
+        iconSpan.className = "fas fa-sort"; 
   
         if (servicioSortState.key === key) {
           if (servicioSortState.direction === "asc") {
@@ -451,31 +451,31 @@ document.addEventListener("DOMContentLoaded", () => {
      * @param {Event} event - El evento 'change' del input de archivo.
      */
     async function handleAvatarUpload(event) {
-      console.log("DEBUG: Avatar file input changed.");
+      //console.log("DEBUG: Avatar file input changed.");
       const file = event.target.files[0];
       if (!file) {
-        console.log("DEBUG: No file selected.");
+       // console.log("DEBUG: No file selected.");
         return;
       }
   
-      const currentUserForUpload = currentUserData; // Usar la variable global de autenticación
+      const currentUserForUpload = currentUserData; 
       if (!currentUserForUpload || !currentUserForUpload.id) {
-        console.error(
-          "Error: No se pudo obtener el ID del usuario actual para subir avatar."
-        );
+        // console.error(
+        //   "Error: No se pudo obtener el ID del usuario actual para subir avatar."
+        // );
         showActionFeedback("Error: No se pudo identificar al usuario.", "error");
         return;
       }
   
-      // Validaciones de archivo
+      
       const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
-      const maxSize = 2 * 1024 * 1024; // 2MB
+      const maxSize = 2 * 1024 * 1024; 
       if (!allowedTypes.includes(file.type)) {
         showActionFeedback(
           "Error: Tipo de archivo no permitido (solo JPG, PNG, GIF).",
           "error"
         );
-        avatarUploadInput.value = ""; // Limpiar input
+        avatarUploadInput.value = ""; 
         return;
       }
       if (file.size > maxSize) {
@@ -483,52 +483,52 @@ document.addEventListener("DOMContentLoaded", () => {
           "Error: El archivo es demasiado grande (máximo 2MB).",
           "error"
         );
-        avatarUploadInput.value = ""; // Limpiar input
+        avatarUploadInput.value = ""; 
         return;
       }
   
       const loadingFeedback = showActionFeedback("Subiendo nueva foto...", "loading");
       const formData = new FormData();
-      formData.append("avatar", file); // El backend espera un campo 'avatar'
+      formData.append("avatar", file); 
   
       try {
-        const apiUrl = `/api/users/${currentUserForUpload.id}/avatar`; // MODIFIED
-        console.log(`DEBUG: Sending POST to ${apiUrl} for avatar upload.`);
+        const apiUrl = `/api/users/${currentUserForUpload.id}/avatar`; 
+      //  console.log(`DEBUG: Sending POST to ${apiUrl} for avatar upload.`);
   
         const response = await fetch(apiUrl, { method: "POST", body: formData });
   
-        if (loadingFeedback && loadingFeedback.parentNode) loadingFeedback.remove(); // Quitar mensaje de carga
+        if (loadingFeedback && loadingFeedback.parentNode) loadingFeedback.remove(); 
   
         const result = await response.json();
-        console.log("DEBUG: Server response (avatar upload):", result);
+        //console.log("DEBUG: Server response (avatar upload):", result);
   
         if (response.ok && result.success && result.avatarUrl) {
-          console.log(
-            "DEBUG: Avatar uploaded successfully. New URL:",
-            result.avatarUrl
-          );
+          // console.log(
+          //   "DEBUG: Avatar uploaded successfully. New URL:",
+          //   result.avatarUrl
+          // );
           if (userAvatarImg) {
-            userAvatarImg.src = result.avatarUrl; // Actualizar imagen en la UI
+            userAvatarImg.src = result.avatarUrl; 
           }
-          // Actualizar avatarUrl en el objeto localCurrentUser y en localStorage
+          
           currentUserForUpload.avatarUrl = result.avatarUrl;
           localStorage.setItem("userData", JSON.stringify(currentUserForUpload));
-          // Actualizar la variable global si es necesario
+          
           currentUserData.avatarUrl = result.avatarUrl;
   
   
-          console.log(
-            "DEBUG: User data updated in localStorage with new avatarUrl."
-          );
+          // console.log(
+          //   "DEBUG: User data updated in localStorage with new avatarUrl."
+          // );
           showActionFeedback(
             result.message || "Foto de perfil actualizada.",
             "success"
           );
         } else {
-          console.error(
-            "Error in server response (avatar upload):",
-            result.message || response.statusText
-          );
+          // console.error(
+          //   "Error in server response (avatar upload):",
+          //   result.message || response.statusText
+          // );
           showActionFeedback(
             result.message || "Error al subir la foto.",
             "error"
@@ -536,16 +536,16 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       } catch (error) {
         if (loadingFeedback && loadingFeedback.parentNode) loadingFeedback.remove();
-        console.error("Network error during avatar upload:", error);
+        //console.error("Network error during avatar upload:", error);
         showActionFeedback("Error de conexión al subir la foto.", "error");
       } finally {
-        if (avatarUploadInput) avatarUploadInput.value = ""; // Limpiar el input de archivo
-        console.log("DEBUG: Avatar file input reset.");
+        if (avatarUploadInput) avatarUploadInput.value = ""; 
+      //  console.log("DEBUG: Avatar file input reset.");
       }
     }
   
   
-    // Event Listeners Generales
+    
     if (logoutButton)
       logoutButton.addEventListener("click", () => {
         localStorage.removeItem("userData");
@@ -558,17 +558,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tablaServiciosBody)
       tablaServiciosBody.addEventListener("click", handleServicioTableActions);
   
-    // Listeners para el modal de servicio
+    
     if (modalServicioCloseButton)
       modalServicioCloseButton.addEventListener("click", closeServicioModal);
     if (modalServicioCancelButton)
       modalServicioCancelButton.addEventListener("click", closeServicioModal);
     if (modalServicioOverlay)
-      modalServicioOverlay.addEventListener("click", closeServicioModal); // Cerrar al hacer clic fuera
+      modalServicioOverlay.addEventListener("click", closeServicioModal); 
     if (servicioForm)
       servicioForm.addEventListener("submit", handleServicioFormSubmit);
   
-    // Listeners para ordenamiento de tabla de servicios
+    
     if (tablaServicios) {
       tablaServicios
         .querySelectorAll("thead .sortable-header")
@@ -580,7 +580,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
   
-    // Listeners para subida de avatar (sidebar y dropdown)
+    
     if (uploadAvatarTrigger && avatarUploadInput) {
       uploadAvatarTrigger.addEventListener("click", () => avatarUploadInput.click());
       avatarUploadInput.addEventListener("change", handleAvatarUpload);
@@ -593,7 +593,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       document.addEventListener("click", (event) => {
         if (
-          profileDropdownMenu && // Verificar que existe
+          profileDropdownMenu && 
           !profileDropdownMenu.classList.contains("hidden") &&
           !profileDropdownButton.contains(event.target) &&
           !profileDropdownMenu.contains(event.target)
@@ -616,21 +616,21 @@ document.addEventListener("DOMContentLoaded", () => {
      */
     async function handleServicioTableActions(event) {
       const targetButton = event.target.closest("button.action-button");
-      if (!targetButton) return; // No fue un clic en un botón de acción
+      if (!targetButton) return; 
   
       const servicioId = targetButton.dataset.id;
-      const nombreServicio = targetButton.dataset.nombre || "este servicio"; // Para mensajes de confirmación
-      if (!servicioId) return; // Botón sin ID de servicio
+      const nombreServicio = targetButton.dataset.nombre || "este servicio"; 
+      if (!servicioId) return; 
   
       if (targetButton.classList.contains("btn-edit")) {
         const servicioData = allServices.find((s) => String(s.id_servicio) === String(servicioId));
         if (servicioData) {
           openServicioModal(true, servicioData);
         } else {
-          // Fallback si no está en caché (debería estarlo, pero por si acaso)
-          console.warn(`Servicio con ID ${servicioId} no encontrado en caché local. Intentando cargar para editar.`);
-          // Podrías hacer un fetch aquí para obtener los datos del servicio específico si es necesario
-          // Por ahora, abrimos con los datos que tenemos (ID y nombre del dataset)
+          
+         // console.warn(`Servicio con ID ${servicioId} no encontrado en caché local. Intentando cargar para editar.`);
+          
+          
           openServicioModal(true, { id_servicio: servicioId, nombre_servicio: nombreServicio });
         }
       } else if (
@@ -662,9 +662,9 @@ document.addEventListener("DOMContentLoaded", () => {
      * @param {Event} event - El evento submit.
      */
     async function handleServicioFormSubmit(event) {
-      event.preventDefault(); // Prevenir envío tradicional del formulario
+      event.preventDefault(); 
       clearModalValidationErrors();
-      showServicioModalFeedback("", "clear"); // Limpiar feedback anterior
+      showServicioModalFeedback("", "clear"); 
   
       let formValid = true;
       if (!servicioNombreInput.value.trim()) {
@@ -683,23 +683,23 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
   
-      if(modalServicioSaveButton) modalServicioSaveButton.disabled = true; // Deshabilitar botón para prevenir doble envío
+      if(modalServicioSaveButton) modalServicioSaveButton.disabled = true; 
       const feedbackMsg = editMode
         ? "Actualizando servicio..."
         : "Añadiendo servicio...";
       showServicioModalFeedback(feedbackMsg, "loading");
   
       const servicioDataPayload = { nombre_servicio: servicioNombreInput.value.trim() };
-      // No enviar 'activo' por defecto al crear, el backend debería manejarlo.
-      // Si se edita, el estado 'activo' se maneja con el endpoint de toggle.
+      
+      
   
-      const servicioId = servicioIdInput.value; // ID del servicio si estamos editando
+      const servicioId = servicioIdInput.value; 
       const apiUrl = editMode
-        ? `/api/servicios/${servicioId}` // MODIFIED
-        : "/api/servicios"; // MODIFIED
+        ? `/api/servicios/${servicioId}` 
+        : "/api/servicios"; 
       const apiMethod = editMode ? "PUT" : "POST";
   
-      console.log(`DEBUG: Enviando ${apiMethod} a ${apiUrl}`, servicioDataPayload);
+      //console.log(`DEBUG: Enviando ${apiMethod} a ${apiUrl}`, servicioDataPayload);
   
       try {
         const response = await fetch(apiUrl, {
@@ -708,7 +708,7 @@ document.addEventListener("DOMContentLoaded", () => {
           body: JSON.stringify(servicioDataPayload),
         });
         const result = await response.json();
-        console.log("DEBUG: Respuesta del backend:", response.status, result);
+        //console.log("DEBUG: Respuesta del backend:", response.status, result);
   
         if (response.ok && result.success) {
           showServicioModalFeedback(
@@ -718,29 +718,29 @@ document.addEventListener("DOMContentLoaded", () => {
           );
           setTimeout(() => {
             closeServicioModal();
-            cargarServicios(); // Recargar la lista de servicios
-            showActionFeedback( // Feedback global
+            cargarServicios(); 
+            showActionFeedback( 
               `Servicio "${servicioDataPayload.nombre_servicio}" ${editMode ? "actualizado" : "añadido"} correctamente.`,
               "success"
             );
-          }, 1000); // Dar tiempo para leer el mensaje del modal
+          }, 1000); 
         } else {
           showServicioModalFeedback(
             result.message ||
               `Error al ${editMode ? "actualizar" : "añadir"} el servicio. ${result.error || ''}`,
             "error"
           );
-          if(modalServicioSaveButton) modalServicioSaveButton.disabled = false; // Rehabilitar botón si hay error
+          if(modalServicioSaveButton) modalServicioSaveButton.disabled = false; 
         }
       } catch (error) {
-        console.error(
-          `DEBUG: Error de red al ${
-            editMode ? "actualizar" : "añadir"
-          } servicio:`,
-          error
-        );
+        // console.error(
+        //   `DEBUG: Error de red al ${
+        //     editMode ? "actualizar" : "añadir"
+        //   } servicio:`,
+        //   error
+        // );
         showServicioModalFeedback("Error de conexión al guardar. Intente nuevamente.", "error");
-        if(modalServicioSaveButton) modalServicioSaveButton.disabled = false; // Rehabilitar botón
+        if(modalServicioSaveButton) modalServicioSaveButton.disabled = false; 
       }
     }
   
@@ -752,9 +752,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const loadingFeedback = showActionFeedback("Cambiando estado del servicio...", "loading");
       try {
         const response = await fetch(
-          `/api/servicios/${servicioId}/toggle`, // MODIFIED
+          `/api/servicios/${servicioId}/toggle`, 
           { method: "PATCH", headers: { "Content-Type": "application/json" } }
-          // No se necesita body si el backend solo necesita el ID para el toggle
+          
         );
         const result = await response.json();
   
@@ -765,7 +765,7 @@ document.addEventListener("DOMContentLoaded", () => {
             result.message || "Estado del servicio cambiado exitosamente.",
             "success"
           );
-          cargarServicios(); // Recargar la lista para reflejar el cambio
+          cargarServicios(); 
         } else {
           showActionFeedback(
             result.message || "Error al cambiar el estado del servicio.",
@@ -774,7 +774,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       } catch (error) {
         if (loadingFeedback && loadingFeedback.parentNode) loadingFeedback.remove();
-        console.error("Error de red al cambiar estado del servicio:", error);
+        //console.error("Error de red al cambiar estado del servicio:", error);
         showActionFeedback("Error de conexión al intentar cambiar estado.", "error");
       }
     }
@@ -787,10 +787,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const loadingFeedback = showActionFeedback("Eliminando servicio...", "loading");
       try {
         const response = await fetch(
-          `/api/servicios/${servicioId}`, // MODIFIED
+          `/api/servicios/${servicioId}`, 
           { method: "DELETE" }
         );
-        // No siempre hay un JSON body en respuesta DELETE exitosa, verificar status code
+        
         let result = { success: response.ok, message: "" };
         if (response.headers.get("content-type")?.includes("application/json")) {
             result = await response.json();
@@ -801,12 +801,12 @@ document.addEventListener("DOMContentLoaded", () => {
   
         if (loadingFeedback && loadingFeedback.parentNode) loadingFeedback.remove();
   
-        if (response.ok && result.success) { // Asumir success si status es 200-299
+        if (response.ok && result.success) { 
           showActionFeedback(
             result.message || "Servicio eliminado correctamente.",
             "success"
           );
-          cargarServicios(); // Recargar la lista
+          cargarServicios(); 
         } else {
           showActionFeedback(
             result.message ||
@@ -816,7 +816,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       } catch (error) {
         if (loadingFeedback && loadingFeedback.parentNode) loadingFeedback.remove();
-        console.error("Error de red al eliminar servicio:", error);
+        //console.error("Error de red al eliminar servicio:", error);
         showActionFeedback("Error de conexión al intentar eliminar.", "error");
       }
     }
@@ -825,11 +825,11 @@ document.addEventListener("DOMContentLoaded", () => {
      * Función de inicialización de la página.
      */
     function inicializarPagina() {
-      cargarServicios(); // Cargar la lista inicial de servicios
-      console.log("Página Gestión de Servicios cargada y lógica inicializada.");
+      cargarServicios(); 
+    //  console.log("Página Gestión de Servicios cargada y lógica inicializada.");
     }
   
-    // Iniciar la página
+    
     inicializarPagina();
   });
   

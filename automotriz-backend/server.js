@@ -8,8 +8,8 @@ const fs = require('fs');
 const multer = require('multer');
 const { body, validationResult, param, query } = require('express-validator');
 const helmet = require('helmet');
-const jwt = require('jsonwebtoken'); // Se mantiene por si se reutiliza
-const cookieParser = require('cookie-parser'); // Se mantiene por si se reutiliza
+const jwt = require('jsonwebtoken'); 
+const cookieParser = require('cookie-parser'); 
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -22,26 +22,26 @@ app.use(
                 ...helmet.contentSecurityPolicy.getDefaultDirectives(),
                 "default-src": ["'self'"],
                 "script-src": ["'self'", "https://cdn.tailwindcss.com", "'unsafe-inline'"], // Permite scripts inline y desde el CDN de Tailwind
-                // MODIFICACIÓN AQUÍ: Permitir atributos inline como onerror
+                
                 "script-src-attr": ["'self'", "'unsafe-inline'"],
                 "style-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "'unsafe-inline'"],
                 "font-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.gstatic.com"],
-                // Ajustado para incluir la URL externa de Render si está disponible
+                
                 "img-src": [
                     "'self'",
                     `http://localhost:${port}`,
                     "https://*.onrender.com", // Permite subdominios de onrender.com
                     "https://placehold.co",
                     "data:",
-                    process.env.RENDER_EXTERNAL_URL ? process.env.RENDER_EXTERNAL_URL : "'none'", // Permite la URL principal de Render
-                    // Descomentar la siguiente línea si RENDER_EXTERNAL_HOSTNAME es diferente y necesario
-                    // `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`
+                    process.env.RENDER_EXTERNAL_URL ? process.env.RENDER_EXTERNAL_URL : "'none'", 
+                    
+                    
                 ],
-                 // Ajustado para incluir la URL externa de Render si está disponible
+                 
                 "connect-src": [
                     "'self'",
                     `http://localhost:${port}`,
-                    process.env.RENDER_EXTERNAL_URL ? process.env.RENDER_EXTERNAL_URL : "'none'", // Permite la URL principal de Render
+                    process.env.RENDER_EXTERNAL_URL ? process.env.RENDER_EXTERNAL_URL : "'none'", 
                     // `https://${process.env.RENDER_EXTERNAL_HOSTNAME}` // Descomentar si es necesario
                 ],
             },
@@ -53,104 +53,104 @@ app.use(
 const allowedOrigins = [
     `http://localhost:${port}`,
     'http://127.0.0.1:5500', // Común para Live Server de VSCode
-    process.env.RENDER_EXTERNAL_URL // Usar la URL externa principal de Render
+    process.env.RENDER_EXTERNAL_URL 
     // `https://${process.env.RENDER_EXTERNAL_HOSTNAME}` // Añadir si es diferente y necesario
-].filter(Boolean); // Elimina entradas nulas/undefined si las variables no están seteadas
+].filter(Boolean); 
 
-console.log("Orígenes CORS permitidos:", allowedOrigins);
+//console.log("Orígenes CORS permitidos:", allowedOrigins);
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Permitir solicitudes sin origen (ej. Postman, curl) o desde orígenes permitidos
+        
         if (!origin || origin === "null" || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            console.error(`Error de CORS: Origen no permitido: ${origin}`);
+          //  console.error(`Error de CORS: Origen no permitido: ${origin}`);
             callback(new Error('Origen no permitido por CORS'));
         }
     },
-    credentials: true // Necesario si se usan cookies (aunque JWT se elimina de la protección de rutas)
+    credentials: true 
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser()); // Se mantiene
+app.use(cookieParser()); 
 
-// Configuración para servir archivos subidos (avatares)
+
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
-app.use('/uploads', express.static(uploadsDir)); // Hace que los archivos en /uploads sean accesibles públicamente
-console.log(`Sirviendo archivos de 'uploads' desde: ${uploadsDir}`);
-console.warn("ADVERTENCIA: Los archivos en 'uploads' son efímeros en el plan gratuito de Render y se borrarán en cada despliegue.");
+app.use('/uploads', express.static(uploadsDir)); 
+//console.log(`Sirviendo archivos de 'uploads' desde: ${uploadsDir}`);
+//console.warn("ADVERTENCIA: Los archivos en 'uploads' son efímeros en el plan gratuito de Render y se borrarán en cada despliegue.");
 
-// Servir archivos estáticos del frontend (HTML, CSS, JS del cliente)
-const frontendDir = path.join(__dirname, '..'); // Asume que el backend está en una subcarpeta y el frontend en la raíz del proyecto
-console.log(`Directorio raíz del proyecto (HTML, css, js): ${frontendDir}`);
+
+const frontendDir = path.join(__dirname, '..'); 
+//console.log(`Directorio raíz del proyecto (HTML, css, js): ${frontendDir}`);
 app.use('/css', express.static(path.join(frontendDir, 'css')));
-console.log(`Sirviendo CSS desde: ${path.join(frontendDir, 'css')}`);
+//console.log(`Sirviendo CSS desde: ${path.join(frontendDir, 'css')}`);
 app.use('/js', express.static(path.join(frontendDir, 'js')));
-console.log(`Sirviendo JS (frontend) desde: ${path.join(frontendDir, 'js')}`);
-app.use(express.static(frontendDir)); // Sirve HTMLs y otros archivos desde la raíz del frontend
-console.log(`Sirviendo archivos estáticos generales (HTMLs) desde: ${frontendDir}`);
+//console.log(`Sirviendo JS (frontend) desde: ${path.join(frontendDir, 'js')}`);
+app.use(express.static(frontendDir)); 
+//console.log(`Sirviendo archivos estáticos generales (HTMLs) desde: ${frontendDir}`);
 
 
-// Configuración de la Base de Datos
+
 const dbPool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : undefined // Necesario para Render DB
+    ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : undefined 
 });
 
-// ---- MODIFICACIÓN PARA LA ZONA HORARIA ----
-// Establecer la zona horaria para todas las nuevas conexiones en el pool
+
+
 dbPool.on('connect', (client) => {
     client.query("SET TIME ZONE 'America/Lima'", (err) => {
         if (err) {
-            console.error('Error al configurar la zona horaria para la nueva conexión a la base de datos:', err);
+          //  console.error('Error al configurar la zona horaria para la nueva conexión a la base de datos:', err);
         } else {
-            // Opcional: puedes loguear si se estableció correctamente para una conexión
-            // console.log('Zona horaria establecida a America/Lima para una nueva conexión de BD.');
+            
+            
         }
     });
 });
-// ---- FIN DE LA MODIFICACIÓN ----
 
-// Test de conexión a la BD
+
+
 async function testDbConnection() {
     let client;
     try {
         client = await dbPool.connect();
-        await client.query('SELECT NOW()'); // Query simple para probar
-        console.log('¡Conexión exitosa a la base de datos PostgreSQL!');
+        await client.query('SELECT NOW()'); 
+     //   console.log('¡Conexión exitosa a la base de datos PostgreSQL!');
     } catch (error) {
-        console.error('Error CRÍTICO al conectar con la base de datos PostgreSQL:', error.message);
+       // console.error('Error CRÍTICO al conectar con la base de datos PostgreSQL:', error.message);
         if (error.code) console.error(`Código de error PostgreSQL: ${error.code}`);
         if (process.env.NODE_ENV !== 'production') {
-             console.error('VERIFICA TUS CREDENCIALES DE BD EN LAS VARIABLES DE ENTORNO (Render o .env local)');
+            // console.error('VERIFICA TUS CREDENCIALES DE BD EN LAS VARIABLES DE ENTORNO (Render o .env local)');
         }
-        process.exit(1); // Terminar la aplicación si no se puede conectar a la BD
+        process.exit(1); 
     } finally {
-        if (client) client.release(); // Liberar el cliente de vuelta al pool
+        if (client) client.release(); 
     }
 }
 testDbConnection();
 
 
 const saltRounds = 10;
-const JWT_SECRET = process.env.JWT_SECRET; // Se mantiene por si se reutiliza
-if (!JWT_SECRET && process.env.NODE_ENV === 'production') { // Solo error crítico en producción si se intenta usar JWT
-    console.warn("ADVERTENCIA: JWT_SECRET no está configurado. La autenticación basada en JWT no funcionará si se habilita.");
+const JWT_SECRET = process.env.JWT_SECRET; 
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') { 
+  //  console.warn("ADVERTENCIA: JWT_SECRET no está configurado. La autenticación basada en JWT no funcionará si se habilita.");
 }
 
-// Configuración de Multer para subida de avatares
+
 const avatarUploadsDir = path.join(uploadsDir, 'avatars');
 if (!fs.existsSync(avatarUploadsDir)) { fs.mkdirSync(avatarUploadsDir, {recursive: true }); }
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) { cb(null, avatarUploadsDir); },
     filename: function (req, file, cb) {
-        // Usar req.params.id si req.user no está disponible
+        
         const userIdForFile = req.params.id || 'unknown_user';
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         const extension = path.extname(file.originalname);
@@ -161,9 +161,9 @@ const fileFilter = (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) { cb(null, true); }
     else { cb(new Error('Tipo de archivo no permitido. Solo se aceptan imágenes.'), false); }
 };
-const upload = multer({ storage: storage, fileFilter: fileFilter, limits: { fileSize: 2 * 1024 * 1024 } }); // Límite de 2MB
+const upload = multer({ storage: storage, fileFilter: fileFilter, limits: { fileSize: 2 * 1024 * 1024 } }); 
 
-// Middleware para manejar errores de Multer
+
 function handleMulterError(err, req, res, next) {
     if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') { return res.status(400).json({ success: false, message: 'El archivo es demasiado grande. Máximo 2MB.' }); }
@@ -172,15 +172,15 @@ function handleMulterError(err, req, res, next) {
     next();
 }
 
-// --- Middleware de Autenticación y Autorización (MANTENIDOS PERO NO USADOS EN RUTAS) ---
+
 function authenticateToken(req, res, next) {
-    // Esta función ya no se llamará en las rutas, pero se deja por si se reactiva
+    
     const token = req.cookies.accessToken;
     if (!token) {
         return res.status(401).json({ success: false, message: 'Acceso denegado. No autenticado (token no presente).' });
     }
     if (!JWT_SECRET) {
-        console.error("Error de autenticación: JWT_SECRET no está configurado en el servidor.");
+      //  console.error("Error de autenticación: JWT_SECRET no está configurado en el servidor.");
         return res.status(500).json({ success: false, message: 'Error de configuración del servidor (JWT).' });
     }
     jwt.verify(token, JWT_SECRET, (err, userPayload) => {
@@ -188,15 +188,15 @@ function authenticateToken(req, res, next) {
             res.clearCookie('accessToken');
             return res.status(403).json({ success: false, message: 'Acceso denegado. Token inválido o expirado.' });
         }
-        req.user = userPayload; // El payload del token decodificado
+        req.user = userPayload; 
         next();
     });
 }
 
 function authorizeRoles(allowedRoles) {
-    // Esta función ya no se llamará en las rutas, pero se deja por si se reactiva
+    
     return (req, res, next) => {
-        if (!req.user || !req.user.rol) { // req.user sería establecido por authenticateToken
+        if (!req.user || !req.user.rol) { 
             return res.status(403).json({ success: false, message: 'Acceso denegado. Rol no especificado o usuario no autenticado.' });
         }
         const hasRole = allowedRoles.includes(req.user.rol);
@@ -206,16 +206,16 @@ function authorizeRoles(allowedRoles) {
         next();
     };
 }
-const adminOnly = authorizeRoles(['Administrador']); // Se mantiene la definición
+const adminOnly = authorizeRoles(['Administrador']); 
 
-// --- RUTAS ---
 
-// Ruta principal (sirve login.html)
+
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(frontendDir, 'login.html'));
 });
 
-// Ruta de Login (se mantiene, pero el token que genera ya no protegerá otras rutas)
+
 app.post('/api/login', [
     body('username').trim().notEmpty().withMessage('Usuario es requerido.').isLength({ min: 3, max: 50 }).escape(),
     body('password').notEmpty().withMessage('Contraseña es requerida.')
@@ -235,16 +235,16 @@ app.post('/api/login', [
         const isPasswordMatch = await bcrypt.compare(password, user.password_hash);
         if (isPasswordMatch) {
             if (!JWT_SECRET) {
-                console.error("Intento de login fallido: JWT_SECRET no configurado.");
+             //   console.error("Intento de login fallido: JWT_SECRET no configurado.");
                 return res.status(500).json({ success: false, message: 'Error de configuración del servidor al iniciar sesión.' });
             }
-            const userPayload = { id: user.id_usuario, username: user.username, rol: user.rol }; // Incluir rol
-            const accessToken = jwt.sign(userPayload, JWT_SECRET, { expiresIn: '1h' }); // Token de 1 hora
+            const userPayload = { id: user.id_usuario, username: user.username, rol: user.rol }; 
+            const accessToken = jwt.sign(userPayload, JWT_SECRET, { expiresIn: '1h' }); 
             res.cookie('accessToken', accessToken, {
-                httpOnly: true, // La cookie no es accesible por JS en el cliente
-                secure: process.env.NODE_ENV === 'production', // Solo HTTPS en producción
-                sameSite: 'strict', // Mitiga CSRF
-                maxAge: 60 * 60 * 1000 // 1 hora en milisegundos
+                httpOnly: true, 
+                secure: process.env.NODE_ENV === 'production', 
+                sameSite: 'strict', 
+                maxAge: 60 * 60 * 1000 
             });
             return res.status(200).json({
                 success: true,
@@ -255,12 +255,12 @@ app.post('/api/login', [
             return res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos.' });
         }
     } catch (error) {
-        console.error('Error durante el proceso de login:', error);
+      //  console.error('Error durante el proceso de login:', error);
         return res.status(500).json({ success: false, message: 'Error interno del servidor durante el inicio de sesión.' });
     }
 });
 
-// Ruta de Logout
+
 app.post('/api/logout', (req, res) => {
     res.clearCookie('accessToken', {
         httpOnly: true,
@@ -270,7 +270,7 @@ app.post('/api/logout', (req, res) => {
     res.status(200).json({ success: true, message: 'Sesión cerrada exitosamente.' });
 });
 
-// Ruta de Registro de Usuarios
+
 app.post('/api/register', [
     body('username').trim().notEmpty().withMessage('Nombre de usuario es requerido.').isAlphanumeric().withMessage('Username solo puede contener letras y números.').isLength({ min: 3, max: 50 }).escape(),
     body('password').notEmpty().withMessage('Contraseña es requerida.').isLength({ min: 6 }).withMessage('La contraseña debe tener al menos 6 caracteres.'),
@@ -282,13 +282,13 @@ app.post('/api/register', [
     const client = await dbPool.connect();
     try {
         await client.query('BEGIN');
-        // Verificar si el nombre completo ya existe
+        
         const existingNameResult = await client.query('SELECT id_usuario FROM Usuarios WHERE nombre_completo = $1', [nombre_completo]);
         if (existingNameResult.rows.length > 0) {
             await client.query('ROLLBACK');
             return res.status(409).json({ success: false, message: 'Error: Ya existe un usuario registrado con ese nombre completo.' });
         }
-        // Verificar si el username ya existe
+        
         const existingUsernameResult = await client.query('SELECT id_usuario FROM Usuarios WHERE username = $1', [username]);
         if (existingUsernameResult.rows.length > 0) {
             await client.query('ROLLBACK');
@@ -296,7 +296,7 @@ app.post('/api/register', [
         }
 
         const hashedPassword = await bcrypt.hash(password, saltRounds);
-        const rolPorDefecto = 'Usuario'; // Rol por defecto para nuevos registros
+        const rolPorDefecto = 'Usuario'; 
         await client.query(
             'INSERT INTO Usuarios (username, password_hash, nombre_completo, rol) VALUES ($1, $2, $3, $4)',
             [username, hashedPassword, nombre_completo, rolPorDefecto]
@@ -304,9 +304,9 @@ app.post('/api/register', [
         await client.query('COMMIT');
         return res.status(201).json({ success: true, message: 'Usuario registrado exitosamente.' });
     } catch (error) {
-        if(client) await client.query('ROLLBACK'); // Asegurar rollback en caso de error
-        console.error('Error durante el proceso de registro:', error);
-        if (error.code === '23505') { // Código de error de PostgreSQL para violación de constraint unique
+        if(client) await client.query('ROLLBACK'); 
+       // console.error('Error durante el proceso de registro:', error);
+        if (error.code === '23505') { 
             return res.status(409).json({ success: false, message: `Error: Conflicto de datos duplicados.` });
         }
         return res.status(500).json({ success: false, message: 'Error interno del servidor durante el registro.' });
@@ -315,27 +315,27 @@ app.post('/api/register', [
     }
 });
 
-// Subida de Avatar (SIN authenticateToken, SIN authorizeRoles)
-app.post('/api/users/:id/avatar', [ // Eliminado authenticateToken
+
+app.post('/api/users/:id/avatar', [ 
     param('id').isInt({ gt: 0 }).withMessage('ID de usuario inválido.')
 ], upload.single('avatar'), handleMulterError, async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        // Si hay errores de validación y se subió un archivo, borrarlo
+        
         if (req.file && req.file.path) { fs.unlink(req.file.path, (err) => { if (err) console.error("Error borrando archivo subido por ID de usuario inválido:", err); }); }
         return res.status(400).json({ success: false, errors: errors.array() });
     }
 
     const userIdFromParams = parseInt(req.params.id, 10);
-    // Se elimina la comprobación de req.user.id y req.user.rol
+    
 
     if (!req.file) {
         return res.status(400).json({ success: false, message: 'No se subió ningún archivo de imagen o el tipo no es permitido.' });
     }
 
-    // Construir la URL pública del avatar
+    
     const avatarRelativePath = path.join('uploads', 'avatars', req.file.filename).replace(/\\/g, '/');
-    // Usar RENDER_EXTERNAL_URL si está disponible (para producción en Render), sino construirla localmente
+    
     const avatarUrl = `${process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`}/${avatarRelativePath}`;
 
     try {
@@ -346,22 +346,22 @@ app.post('/api/users/:id/avatar', [ // Eliminado authenticateToken
         if (result.rowCount > 0) {
             return res.status(200).json({ success: true, message: 'Foto de perfil actualizada exitosamente.', avatarUrl: avatarUrl });
         } else {
-            // Si el usuario no se encuentra, borrar el archivo subido
+            
             fs.unlink(req.file.path, (err) => { if (err) console.error("Error borrando archivo subido para usuario no encontrado:", err); });
             return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
         }
     } catch (error) {
-        console.error(`Error al actualizar avatar para usuario ID: ${userIdFromParams}:`, error);
-        // Borrar el archivo subido si hay un error de BD
+       // console.error(`Error al actualizar avatar para usuario ID: ${userIdFromParams}:`, error);
+        
         fs.unlink(req.file.path, (err) => { if (err) console.error("Error borrando archivo subido debido a error de BD:", err); });
         return res.status(500).json({ success: false, message: 'Error interno al actualizar la foto de perfil.' });
     }
 });
 
 
-// --- RUTAS DE CITAS (SIN authenticateToken) ---
-app.post('/api/citas', [ // Eliminado authenticateToken
-    // Validaciones (se mantienen)
+
+app.post('/api/citas', [ 
+    
     body('nombres_cliente').trim().notEmpty().withMessage('Nombres del cliente son requeridos.').isLength({ max: 100 }).escape(),
     body('apellidos_cliente').trim().notEmpty().withMessage('Apellidos del cliente son requeridos.').isLength({ max: 100 }).escape(),
     body('email_cliente').optional({ checkFalsy: true }).isEmail().withMessage('Email inválido.').normalizeEmail().isLength({ max: 100 }),
@@ -377,13 +377,13 @@ app.post('/api/citas', [ // Eliminado authenticateToken
     body('detalle_sintomas').optional({ checkFalsy: true }).trim().isLength({ max: 1000 }).escape(),
     body('fecha_cita').isISO8601().withMessage('Fecha de cita inválida. Debe ser YYYY-MM-DD.'),
     body('hora_cita').matches(/^([01]\d|2[0-3]):([0-5]\d)$/).withMessage('Hora de cita inválida (HH:MM).'),
-    body('userId').optional().isInt({ gt: 0 }) // userId ahora es opcional y viene del frontend
+    body('userId').optional().isInt({ gt: 0 }) 
 ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
 
-    // const authenticatedUserId = req.user.id; // Ya no disponible
-    const creadorId = req.body.userId || null; // Usar userId del cuerpo o null
+    
+    const creadorId = req.body.userId || null; 
 
     const {
         nombres_cliente, apellidos_cliente, email_cliente, telefono_cliente,
@@ -392,7 +392,7 @@ app.post('/api/citas', [ // Eliminado authenticateToken
         detalle_sintomas, fecha_cita, hora_cita
     } = req.body;
 
-    // Validaciones de lógica de negocio
+    
     if (is_new_vehicle === '1' && (!marca_vehiculo || !modelo_vehiculo || !ano_vehiculo || !placa_vehiculo)) {
         return res.status(400).json({ success: false, message: 'Faltan campos obligatorios para registrar el nuevo vehículo.' });
     }
@@ -403,7 +403,7 @@ app.post('/api/citas', [ // Eliminado authenticateToken
     const client = await dbPool.connect();
     try {
         await client.query('BEGIN');
-        // Lógica para Cliente
+        
         let clienteId;
         const clientesExistentesResult = await client.query( 'SELECT id_cliente FROM Clientes WHERE telefono = $1', [telefono_cliente] );
         if (clientesExistentesResult.rows.length > 0) {
@@ -416,7 +416,7 @@ app.post('/api/citas', [ // Eliminado authenticateToken
             clienteId = clienteResult.rows[0].id_cliente;
         }
 
-        // Lógica para Vehículo
+        
         let vehiculoId;
         if (is_new_vehicle === '1') {
             const placaExistenteResult = await client.query('SELECT id_vehiculo FROM Vehiculos WHERE placa = $1', [placa_vehiculo]);
@@ -441,7 +441,7 @@ app.post('/api/citas', [ // Eliminado authenticateToken
             }
         }
 
-        // Lógica para Servicio
+        
         let servicioParaGuardar = null;
         if (servicio_id && servicio_id !== 'otros' && !isNaN(parseInt(servicio_id))) {
             servicioParaGuardar = `Servicio ID: ${parseInt(servicio_id)}`;
@@ -466,7 +466,7 @@ app.post('/api/citas', [ // Eliminado authenticateToken
 
     } catch (error) {
         if (client) await client.query('ROLLBACK');
-        console.error('Error durante la transacción de base de datos (/api/citas POST):', error);
+       // console.error('Error durante la transacción de base de datos (/api/citas POST):', error);
         if (error.code === '23505') { return res.status(409).json({ success: false, message: `Error: El valor para un campo único ya existe (ej. placa, correo electronico, etc).` }); }
         else if (error.code === '23503') { return res.status(400).json({ success: false, message: 'Error: El cliente o el vehículo seleccionado no es válido o no existe.' }); }
         else { return res.status(500).json({ success: false, message: 'Error interno al registrar la cita.' }); }
@@ -475,11 +475,11 @@ app.post('/api/citas', [ // Eliminado authenticateToken
     }
 });
 
-app.get('/api/citas', [ // Eliminado authenticateToken
+app.get('/api/citas', [ 
     query('fecha_inicio').optional().isISO8601().toDate().withMessage('Fecha de inicio inválida.'),
     query('fecha_fin').optional().isISO8601().toDate().withMessage('Fecha de fin inválida.')
 ], async (req, res) => {
-    // ... (lógica interna se mantiene igual)
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const { fecha_inicio, fecha_fin } = req.query;
@@ -509,15 +509,15 @@ app.get('/api/citas', [ // Eliminado authenticateToken
         const result = await dbPool.query(sqlQuery, queryParams);
         return res.status(200).json({ success: true, citas: result.rows });
     } catch (error) {
-        console.error('Error al obtener la lista de citas:', error);
+       // console.error('Error al obtener la lista de citas:', error);
         return res.status(500).json({ success: false, message: 'Error al obtener la lista de citas.' });
     }
 });
 
-app.get('/api/citas/:id', [ // Eliminado authenticateToken
+app.get('/api/citas/:id', [ 
     param('id').isInt({ gt: 0 }).withMessage('ID de cita inválido.')
 ], async (req, res) => {
-    // ... (lógica interna se mantiene igual)
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const citaId = req.params.id;
@@ -535,25 +535,25 @@ app.get('/api/citas/:id', [ // Eliminado authenticateToken
         }
         return res.status(200).json({ success: true, cita: result.rows[0] });
     } catch (error) {
-        console.error(`Error al obtener cita ID: ${citaId}:`, error);
+      //  console.error(`Error al obtener cita ID: ${citaId}:`, error);
         return res.status(500).json({ success: false, message: 'Error al obtener los detalles de la cita.' });
     }
 });
 
-app.put('/api/citas/:id', [ // Eliminado authenticateToken
+app.put('/api/citas/:id', [ 
     param('id').isInt({ gt: 0 }).withMessage('ID de cita inválido.'),
     body('fecha_cita').isISO8601().withMessage('Fecha de cita inválida. Debe ser YYYY-MM-DD.'),
     body('hora_cita').matches(/^([01]\d|2[0-3]):([0-5]\d)$/).withMessage('Hora de cita inválida (HH:MM).'),
     body('kilometraje').optional({ checkFalsy: true }).isInt({ min: 0 }).withMessage('Kilometraje inválido.'),
     body('servicio_id').notEmpty().withMessage('Servicio es requerido.').trim().escape(),
     body('detalle_sintomas').optional({ checkFalsy: true }).trim().isLength({ max: 1000 }).escape(),
-    body('userId').optional().isInt({ gt: 0 }) // userId ahora es opcional y viene del frontend
+    body('userId').optional().isInt({ gt: 0 }) 
 ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
 
-    // const authenticatedUserId = req.user.id; // Ya no disponible
-    const modificadorId = req.body.userId || null; // Usar userId del cuerpo o null
+    
+    const modificadorId = req.body.userId || null; 
 
     const citaId = req.params.id;
     const { fecha_cita, hora_cita, kilometraje, servicio_id, detalle_sintomas } = req.body;
@@ -580,12 +580,12 @@ app.put('/api/citas/:id', [ // Eliminado authenticateToken
             return res.status(404).json({ success: false, message: 'Cita no encontrada o sin cambios.' });
         }
     } catch (error) {
-        console.error(`Error al actualizar cita ID: ${citaId}:`, error);
+       // console.error(`Error al actualizar cita ID: ${citaId}:`, error);
         return res.status(500).json({ success: false, message: 'Error interno al actualizar la cita.' });
     }
 });
 
-app.patch('/api/citas/:id/cancelar', [ // Eliminado authenticateToken
+app.patch('/api/citas/:id/cancelar', [ 
     param('id').isInt({ gt: 0 }).withMessage('ID de cita inválido.'),
     body('userId').optional().isInt({ gt: 0 })
 ], async (req, res) => {
@@ -604,12 +604,12 @@ app.patch('/api/citas/:id/cancelar', [ // Eliminado authenticateToken
             return res.status(404).json({ success: false, message: 'Cita no encontrada.' });
         }
     } catch (error) {
-        console.error(`Error al cancelar cita ID: ${citaId}:`, error);
+        //console.error(`Error al cancelar cita ID: ${citaId}:`, error);
         return res.status(500).json({ success: false, message: 'Error interno al cancelar la cita.' });
     }
 });
 
-app.patch('/api/citas/:id/completar', [ // Eliminado authenticateToken
+app.patch('/api/citas/:id/completar', [ 
     param('id').isInt({ gt: 0 }).withMessage('ID de cita inválido.'),
     body('userId').optional().isInt({ gt: 0 })
 ], async (req, res) => {
@@ -628,36 +628,36 @@ app.patch('/api/citas/:id/completar', [ // Eliminado authenticateToken
             return res.status(404).json({ success: false, message: 'Cita no encontrada.' });
         }
     } catch (error) {
-        console.error(`Error al completar cita ID: ${citaId}:`, error);
+        //console.error(`Error al completar cita ID: ${citaId}:`, error);
         return res.status(500).json({ success: false, message: 'Error interno al completar la cita.' });
     }
 });
 
 
-// --- RUTAS DE SERVICIOS (SIN authenticateToken, SIN adminOnly) ---
-app.get('/api/servicios', [ query('activos').optional().isBoolean() ], async (req, res) => { // Eliminado authenticateToken y adminOnly
-    // ... (lógica interna se mantiene igual)
+
+app.get('/api/servicios', [ query('activos').optional().isBoolean() ], async (req, res) => { 
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
-    const soloActivos = req.query.activos === 'true'; // Convertir a booleano
+    const soloActivos = req.query.activos === 'true'; 
     try {
         let sqlQuery = "SELECT id_servicio, nombre_servicio, activo FROM Servicios";
         if (soloActivos) { sqlQuery += " WHERE activo = TRUE"; }
         sqlQuery += " ORDER BY nombre_servicio";
         const result = await dbPool.query(sqlQuery);
-        // Asegurar que 'activo' sea booleano en la respuesta
+        
         const serviciosConBooleano = result.rows.map(s => ({ ...s, activo: Boolean(s.activo) }));
         return res.status(200).json({ success: true, servicios: serviciosConBooleano });
     } catch (error) {
-        console.error('Error al obtener servicios:', error);
+      //  console.error('Error al obtener servicios:', error);
         return res.status(500).json({ success: false, message: 'Error al obtener la lista de servicios.' });
     }
 });
 
-app.post('/api/servicios', [ // Eliminado authenticateToken y adminOnly
+app.post('/api/servicios', [ 
     body('nombre_servicio').trim().notEmpty().withMessage('El nombre del servicio es requerido.').isLength({max: 100}).escape()
 ], async (req, res) => {
-    // ... (lógica interna se mantiene igual)
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const { nombre_servicio } = req.body;
@@ -677,7 +677,7 @@ app.post('/api/servicios', [ // Eliminado authenticateToken y adminOnly
         return res.status(201).json({ success: true, message: 'Servicio añadido exitosamente.', id_servicio: result.rows[0].id_servicio });
     } catch (error) {
         if(client) await client.query('ROLLBACK');
-        console.error('Error al añadir servicio:', error);
+        //console.error('Error al añadir servicio:', error);
         if (error.code === '23505') {
              return res.status(409).json({ success: false, message: 'Error: Ya existe un servicio con ese nombre (constraint unique).' });
         }
@@ -687,11 +687,11 @@ app.post('/api/servicios', [ // Eliminado authenticateToken y adminOnly
     }
 });
 
-app.put('/api/servicios/:id', [ // Eliminado authenticateToken y adminOnly
+app.put('/api/servicios/:id', [ 
     param('id').isInt({ gt: 0 }),
     body('nombre_servicio').trim().notEmpty().isLength({max: 100}).escape()
 ], async (req, res) => {
-    // ... (lógica interna se mantiene igual)
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const servicioId = req.params.id;
@@ -699,7 +699,7 @@ app.put('/api/servicios/:id', [ // Eliminado authenticateToken y adminOnly
     const client = await dbPool.connect();
     try {
         await client.query('BEGIN');
-        // Verificar si el nuevo nombre ya existe en OTRO servicio
+        
         const existeResult = await client.query(
             'SELECT id_servicio FROM Servicios WHERE LOWER(nombre_servicio) = LOWER($1) AND id_servicio != $2',
             [nombre_servicio, servicioId]
@@ -720,8 +720,8 @@ app.put('/api/servicios/:id', [ // Eliminado authenticateToken y adminOnly
         }
     } catch (error) {
         if(client) await client.query('ROLLBACK');
-        console.error(`Error al actualizar servicio ID: ${servicioId}:`, error);
-        if (error.code === '23505') { // Por si acaso, aunque la lógica anterior debería cubrirlo
+       // console.error(`Error al actualizar servicio ID: ${servicioId}:`, error);
+        if (error.code === '23505') { 
              return res.status(409).json({ success: false, message: 'Error: Ya existe otro servicio con ese nombre (constraint unique).' });
         }
         return res.status(500).json({ success: false, message: 'Error interno al actualizar el servicio.' });
@@ -730,10 +730,10 @@ app.put('/api/servicios/:id', [ // Eliminado authenticateToken y adminOnly
     }
 });
 
-app.patch('/api/servicios/:id/toggle', [ // Eliminado authenticateToken y adminOnly
+app.patch('/api/servicios/:id/toggle', [ 
     param('id').isInt({ gt: 0 })
 ], async (req, res) => {
-    // ... (lógica interna se mantiene igual)
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const servicioId = req.params.id;
@@ -742,7 +742,7 @@ app.patch('/api/servicios/:id/toggle', [ // Eliminado authenticateToken y adminO
         if (currentServiceResult.rows.length === 0) {
             return res.status(404).json({ success: false, message: 'Servicio no encontrado.' });
         }
-        const nuevoEstadoLogico = !Boolean(currentServiceResult.rows[0].activo); // Invertir estado
+        const nuevoEstadoLogico = !Boolean(currentServiceResult.rows[0].activo); 
         const result = await dbPool.query(
             'UPDATE Servicios SET activo = $1 WHERE id_servicio = $2',
             [nuevoEstadoLogico, servicioId]
@@ -750,29 +750,29 @@ app.patch('/api/servicios/:id/toggle', [ // Eliminado authenticateToken y adminO
         if (result.rowCount > 0) {
             return res.status(200).json({ success: true, message: `Estado del servicio cambiado a ${nuevoEstadoLogico ? 'Activo' : 'Inactivo'}.`, nuevoEstado: nuevoEstadoLogico });
         } else {
-            // Esto no debería ocurrir si la SELECT anterior encontró el servicio
+            
             return res.status(404).json({ success: false, message: 'Servicio no encontrado (o sin cambios).' });
         }
     } catch (error) {
-        console.error(`Error al cambiar estado del servicio ID: ${servicioId}:`, error);
+       // console.error(`Error al cambiar estado del servicio ID: ${servicioId}:`, error);
         return res.status(500).json({ success: false, message: 'Error interno al cambiar estado del servicio.' });
     }
 });
 
-app.delete('/api/servicios/:id', [ // Eliminado authenticateToken y adminOnly
+app.delete('/api/servicios/:id', [ 
     param('id').isInt({ gt: 0 })
 ], async (req, res) => {
-    // ... (lógica interna se mantiene igual)
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const servicioId = req.params.id;
     const client = await dbPool.connect();
     try {
         await client.query('BEGIN');
-        // Verificar si el servicio está en uso en Citas
-        // Asumiendo que servicio_principal puede ser 'Servicio ID: X' o 'Otros servicios / Diagnóstico'
+        
+        
         const servicioIdStringFormat1 = `Servicio ID: ${servicioId}`;
-        const servicioIdStringFormat2 = servicioId.toString(); // Por si se guarda solo el ID en algún lado
+        const servicioIdStringFormat2 = servicioId.toString(); 
 
         const citasAsociadasResult = await client.query(
             'SELECT COUNT(*) as count FROM Citas WHERE servicio_principal = $1 OR servicio_principal = $2',
@@ -793,8 +793,8 @@ app.delete('/api/servicios/:id', [ // Eliminado authenticateToken y adminOnly
         }
     } catch (error) {
         if(client) await client.query('ROLLBACK');
-        console.error(`Error al eliminar servicio ID: ${servicioId}:`, error);
-        if (error.code === '23503') { // Foreign key violation
+       // console.error(`Error al eliminar servicio ID: ${servicioId}:`, error);
+        if (error.code === '23503') { 
             return res.status(409).json({ success: false, message: 'Error: No se puede eliminar el servicio porque está referenciado en otras tablas.'});
         }
         return res.status(500).json({ success: false, message: 'Error interno al eliminar el servicio.' });
@@ -804,11 +804,11 @@ app.delete('/api/servicios/:id', [ // Eliminado authenticateToken y adminOnly
 });
 
 
-// --- RUTAS DE VEHÍCULOS Y CLIENTES (SIN authenticateToken, SIN adminOnly donde aplicaba) ---
-app.get('/api/vehiculos/cliente', [ // Eliminado authenticateToken
+
+app.get('/api/vehiculos/cliente', [ 
     query('telefono').trim().notEmpty().withMessage('Teléfono es requerido.').isMobilePhone('any', { strictMode: false })
 ], async (req, res) => {
-    // ... (lógica interna se mantiene igual)
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
 
@@ -816,7 +816,7 @@ app.get('/api/vehiculos/cliente', [ // Eliminado authenticateToken
     try {
         const clientesResult = await dbPool.query( 'SELECT id_cliente, nombres, apellidos FROM Clientes WHERE telefono = $1', [telefonoCliente] );
         if (clientesResult.rows.length === 0) {
-            // Si el cliente no existe, devolver un array vacío de vehículos y cliente null
+            
             return res.status(200).json({ success: true, vehicles: [], cliente: null });
         }
         const cliente = clientesResult.rows[0];
@@ -830,15 +830,15 @@ app.get('/api/vehiculos/cliente', [ // Eliminado authenticateToken
             cliente: {id_cliente: cliente.id_cliente, nombre_cliente: cliente.nombres, apellido_cliente: cliente.apellidos}
         });
     } catch (error) {
-        console.error('Error al obtener vehículos por teléfono:', error);
+       // console.error('Error al obtener vehículos por teléfono:', error);
         return res.status(500).json({ success: false, message: 'Error al obtener los vehículos del cliente.' });
     }
 });
 
-app.get('/api/clientes/buscar', [ // Eliminado authenticateToken
+app.get('/api/clientes/buscar', [ 
     query('telefono').trim().notEmpty().withMessage('Teléfono es requerido.').isMobilePhone('any', { strictMode: false })
 ], async (req, res) => {
-    // ... (lógica interna se mantiene igual)
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const telefono = req.query.telefono;
@@ -851,15 +851,15 @@ app.get('/api/clientes/buscar', [ // Eliminado authenticateToken
             return res.status(404).json({ success: false, message: 'Cliente no encontrado con ese teléfono.' });
         }
     } catch (error) {
-        console.error("Error buscando cliente por teléfono:", error);
+      //  console.error("Error buscando cliente por teléfono:", error);
         return res.status(500).json({ success: false, message: 'Error interno al buscar cliente.' });
     }
 });
 
-app.get('/api/vehiculos', [ // Eliminado authenticateToken y adminOnly
+app.get('/api/vehiculos', [ 
     query('placa').optional().trim().toUpperCase().escape()
 ], async (req, res) => {
-    // ... (lógica interna se mantiene igual)
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const placaQuery = req.query.placa;
@@ -871,39 +871,39 @@ app.get('/api/vehiculos', [ // Eliminado authenticateToken y adminOnly
             JOIN Clientes cl ON v.id_cliente = cl.id_cliente `;
         const queryParams = [];
         if (placaQuery) {
-            sqlQuery += ' WHERE v.placa LIKE $1'; // Búsqueda por placa que comience con el término
+            sqlQuery += ' WHERE v.placa LIKE $1'; 
             queryParams.push(`${placaQuery}%`);
         }
         sqlQuery += ' ORDER BY cl.apellidos, cl.nombres, v.marca, v.modelo';
         const vehiculosResult = await dbPool.query(sqlQuery, queryParams);
         return res.status(200).json({ success: true, vehiculos: vehiculosResult.rows });
     } catch (error) {
-        console.error('Error al obtener la lista de vehículos:', error);
+      //  console.error('Error al obtener la lista de vehículos:', error);
         return res.status(500).json({ success: false, message: 'Error al obtener la lista de vehículos.' });
     }
 });
 
-app.post('/api/vehiculos', [ // Eliminado authenticateToken y adminOnly
+app.post('/api/vehiculos', [ 
     body('placa_vehiculo').trim().notEmpty().withMessage('Placa es requerida.').isLength({min:3, max:10}).toUpperCase().escape(),
     body('marca_vehiculo').trim().notEmpty().withMessage('Marca es requerida.').isLength({max:50}).escape(),
     body('modelo_vehiculo').trim().notEmpty().withMessage('Modelo es requerido.').isLength({max:50}).escape(),
     body('ano_vehiculo').isInt({min: 1900, max: new Date().getFullYear() + 1}).withMessage('Año inválido.'),
     body('id_cliente').isInt({ gt: 0 }).withMessage('ID de cliente inválido.')
 ], async (req, res) => {
-    // ... (lógica interna se mantiene igual)
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const { placa_vehiculo, marca_vehiculo, modelo_vehiculo, ano_vehiculo, id_cliente } = req.body;
     const client = await dbPool.connect();
     try {
         await client.query('BEGIN');
-        // Verificar si el cliente existe
+        
         const clienteExisteResult = await client.query('SELECT id_cliente FROM Clientes WHERE id_cliente = $1', [id_cliente]);
         if (clienteExisteResult.rows.length === 0) {
             await client.query('ROLLBACK');
             return res.status(404).json({ success: false, message: 'Error: El cliente especificado no existe.' });
         }
-        // Verificar si la placa ya existe
+        
         const placaExistenteResult = await client.query('SELECT id_vehiculo FROM Vehiculos WHERE placa = $1', [placa_vehiculo]);
         if (placaExistenteResult.rows.length > 0) {
             await client.query('ROLLBACK');
@@ -916,8 +916,8 @@ app.post('/api/vehiculos', [ // Eliminado authenticateToken y adminOnly
         return res.status(201).json({ success: true, message: 'Vehículo añadido exitosamente.', vehiculoId: result.rows[0].id_vehiculo });
     } catch (error) {
         if(client) await client.query('ROLLBACK');
-        console.error('Error al añadir vehículo:', error);
-        if (error.code === '23505') { // Unique constraint violation (placa)
+       // console.error('Error al añadir vehículo:', error);
+        if (error.code === '23505') { 
             return res.status(409).json({ success: false, message: `Error: La placa del vehículo ya existe.` });
         }
         return res.status(500).json({ success: false, message: 'Error interno al añadir el vehículo.' });
@@ -926,15 +926,15 @@ app.post('/api/vehiculos', [ // Eliminado authenticateToken y adminOnly
     }
 });
 
-app.put('/api/vehiculos/:id', [ // Eliminado authenticateToken y adminOnly
+app.put('/api/vehiculos/:id', [ 
     param('id').isInt({ gt: 0 }).withMessage('ID de vehículo inválido.'),
     body('placa_vehiculo').trim().notEmpty().withMessage('Placa es requerida.').isLength({min:3, max:10}).toUpperCase().escape(),
     body('marca_vehiculo').trim().notEmpty().withMessage('Marca es requerida.').isLength({max:50}).escape(),
     body('modelo_vehiculo').trim().notEmpty().withMessage('Modelo es requerido.').isLength({max:50}).escape(),
     body('ano_vehiculo').isInt({min: 1900, max: new Date().getFullYear() + 1}).withMessage('Año inválido.')
-    // No se permite cambiar el id_cliente de un vehículo existente por esta ruta
+    
 ], async (req, res) => {
-    // ... (lógica interna se mantiene igual)
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const vehiculoId = req.params.id;
@@ -942,7 +942,7 @@ app.put('/api/vehiculos/:id', [ // Eliminado authenticateToken y adminOnly
     const client = await dbPool.connect();
     try {
         await client.query('BEGIN');
-        // Verificar si la nueva placa ya existe en OTRO vehículo
+        
         const placaExistenteResult = await client.query(
             'SELECT id_vehiculo FROM Vehiculos WHERE placa = $1 AND id_vehiculo != $2',
             [placa_vehiculo, vehiculoId]
@@ -962,8 +962,8 @@ app.put('/api/vehiculos/:id', [ // Eliminado authenticateToken y adminOnly
         }
     } catch (error) {
         if(client) await client.query('ROLLBACK');
-        console.error(`Error al actualizar vehículo ID: ${vehiculoId}:`, error);
-        if (error.code === '23505') { // Placa duplicada
+       // console.error(`Error al actualizar vehículo ID: ${vehiculoId}:`, error);
+        if (error.code === '23505') { 
             return res.status(409).json({ success: false, message: `Error: La placa del vehículo ya existe.` });
         }
         return res.status(500).json({ success: false, message: 'Error interno al actualizar el vehículo.' });
@@ -972,17 +972,17 @@ app.put('/api/vehiculos/:id', [ // Eliminado authenticateToken y adminOnly
     }
 });
 
-app.delete('/api/vehiculos/:id', [ // Eliminado authenticateToken y adminOnly
+app.delete('/api/vehiculos/:id', [ 
     param('id').isInt({ gt: 0 }).withMessage('ID de vehículo inválido.')
 ], async (req, res) => {
-    // ... (lógica interna se mantiene igual)
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) { return res.status(400).json({ success: false, errors: errors.array() }); }
     const vehiculoId = req.params.id;
     const client = await dbPool.connect();
     try {
         await client.query('BEGIN');
-        // Verificar si el vehículo tiene citas asociadas
+        
         const citasAsociadasResult = await client.query( 'SELECT COUNT(*) as count FROM Citas WHERE id_vehiculo = $1', [vehiculoId] );
         if (citasAsociadasResult.rows[0].count > 0) {
             await client.query('ROLLBACK');
@@ -997,8 +997,8 @@ app.delete('/api/vehiculos/:id', [ // Eliminado authenticateToken y adminOnly
         }
     } catch (error) {
         if(client) await client.query('ROLLBACK');
-        console.error(`Error al eliminar vehículo ID: ${vehiculoId}:`, error);
-        if (error.code === '23503') { // Foreign key violation (si hay otras dependencias no cubiertas)
+        //console.error(`Error al eliminar vehículo ID: ${vehiculoId}:`, error);
+        if (error.code === '23503') { 
             return res.status(409).json({ success: false, message: 'Error: No se puede eliminar el vehículo porque está referenciado en otras tablas.'});
         }
         return res.status(500).json({ success: false, message: 'Error interno al eliminar el vehículo.' });
@@ -1007,46 +1007,46 @@ app.delete('/api/vehiculos/:id', [ // Eliminado authenticateToken y adminOnly
     }
 });
 
-// Rutas de conteo (SIN seguridad)
-app.get('/api/vehiculos/count', async (req, res) => { // Eliminado authenticateToken y adminOnly
+
+app.get('/api/vehiculos/count', async (req, res) => { 
     try {
         const result = await dbPool.query('SELECT COUNT(*) as total FROM Vehiculos');
         res.json({ success: true, total: parseInt(result.rows[0].total) });
     } catch (error) {
-        console.error('Error al contar vehículos:', error);
+      //  console.error('Error al contar vehículos:', error);
         res.status(500).json({ success: false, message: 'Error interno al contar vehículos.' });
     }
 });
 
-app.get('/api/clientes/count', async (req, res) => { // Eliminado authenticateToken y adminOnly
+app.get('/api/clientes/count', async (req, res) => { 
     try {
         const result = await dbPool.query('SELECT COUNT(*) as total FROM Clientes');
         res.json({ success: true, total: parseInt(result.rows[0].total) });
     } catch (error) {
-        console.error('Error al contar clientes:', error);
+       // console.error('Error al contar clientes:', error);
         res.status(500).json({ success: false, message: 'Error interno al contar clientes.' });
     }
 });
 
 
-// Iniciar servidor
-app.listen(port, '0.0.0.0', () => { // Escuchar en 0.0.0.0 para Render
-    console.log(`Servidor backend escuchando en el puerto ${port}`);
+
+app.listen(port, '0.0.0.0', () => { 
+  //  console.log(`Servidor backend escuchando en el puerto ${port}`);
     const host = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
-    console.log(`Frontend debería ser accesible en ${host}/login.html (o la página de inicio que uses)`);
+  //  console.log(`Frontend debería ser accesible en ${host}/login.html (o la página de inicio que uses)`);
 });
 
-// Manejo elegante de cierre
+
 async function gracefulShutdown() {
-    console.log('Cerrando servidor elegantemente...');
+  //  console.log('Cerrando servidor elegantemente...');
     try {
-        await dbPool.end(); // Cierra todas las conexiones en el pool
-        console.log('Pool de conexiones de la base de datos PostgreSQL cerrado.');
+        await dbPool.end(); 
+     //   console.log('Pool de conexiones de la base de datos PostgreSQL cerrado.');
         process.exit(0);
     } catch (err) {
-        console.error('Error al cerrar el pool de conexiones de PostgreSQL:', err);
+      //  console.error('Error al cerrar el pool de conexiones de PostgreSQL:', err);
         process.exit(1);
     }
 }
-process.on('SIGINT', gracefulShutdown); // Ctrl+C
-process.on('SIGTERM', gracefulShutdown); // 'kill' (Render usa esto)
+process.on('SIGINT', gracefulShutdown); 
+process.on('SIGTERM', gracefulShutdown); 

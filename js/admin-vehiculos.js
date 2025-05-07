@@ -1,21 +1,21 @@
 document.addEventListener("DOMContentLoaded", () => {
-    // Asumiendo que currentUser e isAuthenticated se definen globalmente
-    // por un script previo (ej. auto-check-admin-vehiculos.js)
+    
+    
     let localCurrentUser = currentUser;
     let isAuthenticatedOnLoad = isAuthenticated;
   
     if (!isAuthenticatedOnLoad || !localCurrentUser) {
-      console.error("Autenticación fallida o datos de usuario no disponibles en admin-vehiculos.js. Redirigiendo a login.");
+      ////error("Autenticación fallida o datos de usuario no disponibles en admin-vehiculos.js. Redirigiendo a login.");
       if (!window.location.pathname.endsWith("login.html")) {
         window.location.replace("login.html");
       }
-      return; // Detiene la ejecución si no está autenticado
+      return; 
     }
   
-    document.body.classList.remove("auth-pending"); // Muestra el contenido de la página
-    console.log("Usuario autenticado en admin-vehiculos.js, inicializando script...");
+    document.body.classList.remove("auth-pending"); 
+   //// console.log("Usuario autenticado en admin-vehiculos.js, inicializando script...");
   
-    // Obtención de elementos del DOM
+    
     const userAvatarImg = document.getElementById("user-avatar-img");
     const uploadAvatarTrigger = document.getElementById("upload-avatar-trigger");
     const avatarUploadInput = document.getElementById("avatar-upload-input");
@@ -36,14 +36,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnBuscarVehiculos = document.getElementById("btn-buscar-vehiculos");
     const btnLimpiarBusqueda = document.getElementById("btn-limpiar-busqueda");
     const btnAddVehiculo = document.getElementById("btn-add-vehiculo");
-    // const actionFeedbackMessageDiv = document.getElementById( // No parece usarse directamente, globalFeedbackContainer es el principal
-    //   "action-feedback-message"
-    // );
+    
+    
+    
     const globalFeedbackContainer = document.getElementById(
       "global-feedback-container"
     );
   
-    // Elementos del Modal de Vehículo
+    
     const modalVehiculoOverlay = document.getElementById(
       "modal-vehiculo-overlay"
     );
@@ -62,13 +62,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const vehiculoFeedbackMessageDiv = document.getElementById(
       "vehiculo-feedback-message"
     );
-    const vehiculoIdInput = document.getElementById("vehiculo-id"); // Hidden input para ID en edición
+    const vehiculoIdInput = document.getElementById("vehiculo-id"); 
     const vehiculoPlacaInput = document.getElementById("vehiculo-placa");
     const vehiculoMarcaInput = document.getElementById("vehiculo-marca");
     const vehiculoModeloInput = document.getElementById("vehiculo-modelo");
     const vehiculoAnoInput = document.getElementById("vehiculo-ano");
   
-    // Sección para asociar cliente
+    
     const asociarClienteSection = document.getElementById(
       "asociar-cliente-section"
     );
@@ -82,16 +82,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const clienteEncontradoNombreSpan = document.getElementById(
       "cliente-encontrado-nombre"
     );
-    const clienteAsociadoIdInput = document.getElementById("cliente-asociado-id"); // Hidden input para ID de cliente
+    const clienteAsociadoIdInput = document.getElementById("cliente-asociado-id"); 
     const errorBuscarClienteSpan = document.getElementById(
       "error-buscar-cliente"
     );
   
-    let allVehicles = []; // Caché para todos los vehículos cargados
-    let editMode = false; // Flag para saber si el modal está en modo edición o creación
-    let vehiculoSortState = { key: null, direction: "none" }; // Estado del ordenamiento de la tabla
+    let allVehicles = []; 
+    let editMode = false; 
+    let vehiculoSortState = { key: null, direction: "none" }; 
   
-    // Configuración inicial de la UI con datos del usuario
+    
     if (userNameDisplay)
       userNameDisplay.textContent =
         localCurrentUser.nombre || localCurrentUser.username;
@@ -114,7 +114,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function showActionFeedback(message, type = "info", duration = 4000) {
       let feedbackContainer = globalFeedbackContainer;
       if (!feedbackContainer) {
-        console.warn("Contenedor de feedback global no encontrado en el DOM. Creando uno nuevo.");
+       // console.warn("Contenedor de feedback global no encontrado en el DOM. Creando uno nuevo.");
         feedbackContainer = document.createElement("div");
         feedbackContainer.id = "global-feedback-container";
         feedbackContainer.style.position = "fixed";
@@ -126,7 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
         feedbackContainer.style.gap = "0.5rem";
         feedbackContainer.style.alignItems = "flex-end";
         document.body.appendChild(feedbackContainer);
-        // globalFeedbackContainer = feedbackContainer; // Actualizar referencia si se crea dinámicamente
+        
       }
   
       const feedbackDiv = document.createElement("div");
@@ -144,7 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
           bgColor = "bg-blue-100 border border-blue-400 text-blue-700";
           iconClass = "fas fa-spinner fa-spin";
           break;
-        default: // info
+        default: 
           bgColor = "bg-gray-100 border border-gray-400 text-gray-700";
           iconClass = "fas fa-info-circle";
           break;
@@ -156,7 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
       feedbackDiv.innerHTML = `<span class="inline-block align-middle mr-2"><i class="${iconClass}"></i></span><span class="inline-block align-middle">${message}</span>`;
       feedbackContainer.appendChild(feedbackDiv);
   
-      void feedbackDiv.offsetWidth; // Forzar reflow para animación
+      void feedbackDiv.offsetWidth; 
       feedbackDiv.style.opacity = "1";
       feedbackDiv.style.transform = "translateY(0)";
   
@@ -201,7 +201,7 @@ document.addEventListener("DOMContentLoaded", () => {
           bgColor = "bg-blue-100 border border-blue-400 text-blue-700";
           iconClass = "fas fa-spinner fa-spin";
           break;
-        default: // info
+        default: 
           bgColor = "bg-gray-100 border border-gray-400 text-gray-700";
           iconClass = "fas fa-info-circle";
           break;
@@ -230,7 +230,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .querySelectorAll(".error-message")
         .forEach((el) => el.classList.add("hidden"));
   
-      // Limpiar errores específicos de la búsqueda de cliente
+      
       if (errorBuscarClienteSpan) errorBuscarClienteSpan.classList.add("hidden");
       if (buscarClienteTelefonoInput)
         buscarClienteTelefonoInput.classList.remove(
@@ -245,10 +245,10 @@ document.addEventListener("DOMContentLoaded", () => {
      */
     function renderizarTablaVehiculos(vehiculosData) {
       if (!tablaVehiculosBody) {
-        console.error("ERROR: tablaVehiculosBody no encontrado en el DOM.");
+       // console.error("ERROR: tablaVehiculosBody no encontrado en el DOM.");
         return;
       }
-      tablaVehiculosBody.innerHTML = ""; // Limpiar tabla existente
+      tablaVehiculosBody.innerHTML = ""; 
   
       if (!vehiculosData || vehiculosData.length === 0) {
         tablaVehiculosBody.innerHTML =
@@ -283,18 +283,18 @@ document.addEventListener("DOMContentLoaded", () => {
      */
     async function cargarVehiculos(searchTerm = "") {
       if (!tablaVehiculosBody) {
-          console.error("ERROR: tablaVehiculosBody no definido al cargar vehículos.");
+         // console.error("ERROR: tablaVehiculosBody no definido al cargar vehículos.");
           return;
       }
       const loadingHtml =
         '<tr><td colspan="6" class="py-4 px-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i> Cargando vehículos...</td></tr>';
       tablaVehiculosBody.innerHTML = loadingHtml;
   
-      allVehicles = []; // Limpiar caché local
-      vehiculoSortState = { key: null, direction: "none" }; // Resetear estado de ordenamiento
-      updateVehiculoSortIcons(); // Actualizar iconos
+      allVehicles = []; 
+      vehiculoSortState = { key: null, direction: "none" }; 
+      updateVehiculoSortIcons(); 
   
-      let apiUrl = "/api/vehiculos"; // MODIFIED
+      let apiUrl = "/api/vehiculos"; 
       const trimmedSearchTerm = searchTerm.trim().toUpperCase();
       if (trimmedSearchTerm) {
         apiUrl += `?placa=${encodeURIComponent(trimmedSearchTerm)}`;
@@ -308,13 +308,13 @@ document.addEventListener("DOMContentLoaded", () => {
           allVehicles = data.vehiculos;
           renderizarTablaVehiculos(allVehicles);
         } else {
-          console.error("Error al cargar vehículos:", data.message || "Respuesta no OK");
+         // console.error("Error al cargar vehículos:", data.message || "Respuesta no OK");
           tablaVehiculosBody.innerHTML = `<tr><td colspan="6" class="py-4 px-4 text-center text-red-500">Error al cargar vehículos: ${
             data.message || "Error desconocido del servidor"
           }</td></tr>`;
         }
       } catch (error) {
-        console.error("Error de red al cargar vehículos:", error);
+       // console.error("Error de red al cargar vehículos:", error);
         tablaVehiculosBody.innerHTML =
           '<tr><td colspan="6" class="py-4 px-4 text-center text-red-500">Error de conexión al cargar vehículos.</td></tr>';
       }
@@ -328,14 +328,14 @@ document.addEventListener("DOMContentLoaded", () => {
     function openVehiculoModal(isEditMode = false, vehiculoData = null) {
       editMode = isEditMode;
       if (!vehiculoForm || !modalVehiculoTitle || !vehiculoIdInput || !vehiculoPlacaInput || !vehiculoMarcaInput || !vehiculoModeloInput || !vehiculoAnoInput || !modalVehiculoSaveButton || !modalVehiculoOverlay || !vehiculoModal || !asociarClienteSection || !clienteEncontradoInfoDiv || !clienteAsociadoIdInput) {
-          console.error("ERROR: Uno o más elementos del modal de vehículo no fueron encontrados.");
+         // console.error("ERROR: Uno o más elementos del modal de vehículo no fueron encontrados.");
           return;
       }
       vehiculoForm.reset();
       clearModalValidationErrors();
       showVehiculoModalFeedback("", "clear");
-      clienteEncontradoInfoDiv.classList.add("hidden"); // Ocultar info de cliente encontrado
-      clienteAsociadoIdInput.value = ""; // Limpiar ID de cliente asociado
+      clienteEncontradoInfoDiv.classList.add("hidden"); 
+      clienteAsociadoIdInput.value = ""; 
       if(modalVehiculoSaveButton) modalVehiculoSaveButton.disabled = false;
   
       if (isEditMode && vehiculoData) {
@@ -345,13 +345,13 @@ document.addEventListener("DOMContentLoaded", () => {
         vehiculoMarcaInput.value = vehiculoData.marca_vehiculo || "";
         vehiculoModeloInput.value = vehiculoData.modelo_vehiculo || "";
         vehiculoAnoInput.value = vehiculoData.ano_vehiculo || "";
-        asociarClienteSection.style.display = "none"; // Ocultar sección de asociar cliente en edición
+        asociarClienteSection.style.display = "none"; 
         if(modalVehiculoSaveButton) modalVehiculoSaveButton.innerHTML =
           '<i class="fas fa-save mr-2"></i> Actualizar Vehículo';
       } else {
         modalVehiculoTitle.textContent = "Añadir Nuevo Vehículo";
-        vehiculoIdInput.value = ""; // ID vacío para nuevo vehículo
-        asociarClienteSection.style.display = "block"; // Mostrar sección de asociar cliente
+        vehiculoIdInput.value = ""; 
+        asociarClienteSection.style.display = "block"; 
         if(modalVehiculoSaveButton) modalVehiculoSaveButton.innerHTML =
           '<i class="fas fa-plus mr-2"></i> Añadir Vehículo';
       }
@@ -398,7 +398,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return "";
         }
       } catch (e) {
-        console.error("Error obteniendo valor de ordenamiento para vehículo:", e);
+       // console.error("Error obteniendo valor de ordenamiento para vehículo:", e);
         return "";
       }
     }
@@ -447,7 +447,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!iconSpan) return;
   
         th.classList.remove("sort-asc", "sort-desc");
-        iconSpan.className = "fas fa-sort"; // Icono por defecto
+        iconSpan.className = "fas fa-sort"; 
   
         if (vehiculoSortState.key === key) {
           if (vehiculoSortState.direction === "asc") {
@@ -469,14 +469,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const file = event.target.files[0];
       if (!file) return;
   
-      const currentUserForUpload = currentUser; // Usar la variable global
+      const currentUserForUpload = currentUser; 
       if (!currentUserForUpload || !currentUserForUpload.id) {
         showActionFeedback("Error: No se pudo identificar al usuario para subir avatar.", "error");
         return;
       }
   
       const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
-      const maxSize = 2 * 1024 * 1024; // 2MB
+      const maxSize = 2 * 1024 * 1024; 
       if (!allowedTypes.includes(file.type)) {
         showActionFeedback("Error: Tipo de archivo no permitido (solo JPG, PNG, GIF).", "error");
         if (avatarUploadInput) avatarUploadInput.value = "";
@@ -493,7 +493,7 @@ document.addEventListener("DOMContentLoaded", () => {
       formData.append("avatar", file);
   
       try {
-        const apiUrl = `/api/users/${currentUserForUpload.id}/avatar`; // MODIFIED
+        const apiUrl = `/api/users/${currentUserForUpload.id}/avatar`; 
         const response = await fetch(apiUrl, { method: "POST", body: formData });
   
         if (loadingFeedback && loadingFeedback.parentNode) loadingFeedback.remove();
@@ -501,22 +501,22 @@ document.addEventListener("DOMContentLoaded", () => {
         const result = await response.json();
         if (response.ok && result.success && result.avatarUrl) {
           if (userAvatarImg) userAvatarImg.src = result.avatarUrl;
-          currentUserForUpload.avatarUrl = result.avatarUrl; // Actualizar el objeto global
-          localStorage.setItem("userData", JSON.stringify(currentUserForUpload)); // Actualizar localStorage
+          currentUserForUpload.avatarUrl = result.avatarUrl; 
+          localStorage.setItem("userData", JSON.stringify(currentUserForUpload)); 
           showActionFeedback(result.message || "Foto de perfil actualizada.", "success");
         } else {
           showActionFeedback(result.message || "Error al subir la foto.", "error");
         }
       } catch (error) {
         if (loadingFeedback && loadingFeedback.parentNode) loadingFeedback.remove();
-        console.error("Error de red al subir avatar:", error);
+       // console.error("Error de red al subir avatar:", error);
         showActionFeedback("Error de conexión al subir la foto.", "error");
       } finally {
         if (avatarUploadInput) avatarUploadInput.value = "";
       }
     }
   
-    // Event Listeners Generales
+    
     if (logoutButton)
       logoutButton.addEventListener("click", () => {
         localStorage.removeItem("userData");
@@ -545,7 +545,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tablaVehiculosBody)
       tablaVehiculosBody.addEventListener("click", handleVehiculoTableActions);
   
-    // Listeners para el modal de vehículo
+    
     if (modalVehiculoCloseButton)
       modalVehiculoCloseButton.addEventListener("click", closeVehiculoModal);
     if (modalVehiculoCancelButton)
@@ -557,7 +557,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnBuscarCliente)
       btnBuscarCliente.addEventListener("click", handleBuscarCliente);
   
-    // Listeners para ordenamiento de tabla de vehículos
+    
     if (tablaVehiculos) {
       tablaVehiculos
         .querySelectorAll("thead .sortable-header")
@@ -569,7 +569,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
   
-    // Listeners para subida de avatar
+    
     if (uploadAvatarTrigger && avatarUploadInput) {
       uploadAvatarTrigger.addEventListener("click", () => avatarUploadInput.click());
       avatarUploadInput.addEventListener("change", handleAvatarUpload);
@@ -604,16 +604,16 @@ document.addEventListener("DOMContentLoaded", () => {
      */
     async function handleBuscarCliente() {
       if (!buscarClienteTelefonoInput || !clienteEncontradoInfoDiv || !errorBuscarClienteSpan || !clienteAsociadoIdInput) {
-          console.error("Elementos para buscar cliente no encontrados.");
+         // console.error("Elementos para buscar cliente no encontrados.");
           return;
       }
       const telefono = buscarClienteTelefonoInput.value.trim();
       clienteEncontradoInfoDiv.classList.add("hidden");
       errorBuscarClienteSpan.classList.add("hidden");
-      clienteAsociadoIdInput.value = ""; // Limpiar ID previo
+      clienteAsociadoIdInput.value = ""; 
       buscarClienteTelefonoInput.classList.remove("border-red-500", "is-invalid");
   
-      if (!telefono || !/^[0-9]{7,15}$/.test(telefono)) { // Validación simple de teléfono
+      if (!telefono || !/^[0-9]{7,15}$/.test(telefono)) { 
         showVehiculoModalFeedback("Ingrese un número de teléfono válido (7-15 dígitos).", "error");
         errorBuscarClienteSpan.textContent = "Teléfono inválido.";
         errorBuscarClienteSpan.classList.remove("hidden");
@@ -624,10 +624,10 @@ document.addEventListener("DOMContentLoaded", () => {
       showVehiculoModalFeedback("Buscando cliente...", "loading");
       try {
         const response = await fetch(
-          `/api/clientes/buscar?telefono=${encodeURIComponent(telefono)}` // MODIFIED
+          `/api/clientes/buscar?telefono=${encodeURIComponent(telefono)}` 
         );
         const result = await response.json();
-        showVehiculoModalFeedback("", "clear"); // Limpiar mensaje de "Buscando..."
+        showVehiculoModalFeedback("", "clear"); 
   
         if (response.ok && result.success && result.cliente) {
           const cliente = result.cliente;
@@ -644,7 +644,7 @@ document.addEventListener("DOMContentLoaded", () => {
           errorBuscarClienteSpan.classList.remove("hidden");
         }
       } catch (error) {
-        console.error("Error buscando cliente:", error);
+       // console.error("Error buscando cliente:", error);
         showVehiculoModalFeedback("Error de red al buscar cliente. Intente nuevamente.", "error");
         errorBuscarClienteSpan.textContent = "Error de conexión.";
         errorBuscarClienteSpan.classList.remove("hidden");
@@ -661,7 +661,7 @@ document.addEventListener("DOMContentLoaded", () => {
       showVehiculoModalFeedback("", "clear");
   
       let formValid = true;
-      // Validar campos requeridos
+      
       const requiredFields = [vehiculoPlacaInput, vehiculoMarcaInput, vehiculoModeloInput, vehiculoAnoInput];
       requiredFields.forEach((field) => {
           if (field && !field.value.trim()) {
@@ -672,7 +672,7 @@ document.addEventListener("DOMContentLoaded", () => {
           }
       });
   
-      // Validar asociación de cliente si es un nuevo vehículo
+      
       if (!editMode && (!clienteAsociadoIdInput || !clienteAsociadoIdInput.value)) {
         if(errorBuscarClienteSpan) errorBuscarClienteSpan.classList.remove("hidden");
         if(errorBuscarClienteSpan) errorBuscarClienteSpan.textContent = "Debe asociar un cliente al vehículo.";
@@ -680,15 +680,15 @@ document.addEventListener("DOMContentLoaded", () => {
         formValid = false;
       }
   
-      // Validar formato del año
+      
       const anoVal = parseInt(vehiculoAnoInput.value);
       const currentYear = new Date().getFullYear();
       if (
-        vehiculoAnoInput.value && // Solo validar si hay un valor
+        vehiculoAnoInput.value && 
         (isNaN(anoVal) ||
           String(anoVal).length !== 4 ||
-          anoVal < 1980 || // Año mínimo razonable
-          anoVal > currentYear + 1) // Permitir hasta el próximo año
+          anoVal < 1980 || 
+          anoVal > currentYear + 1) 
       ) {
         vehiculoAnoInput.classList.add("is-invalid", "border-red-500");
         const errorSpan = vehiculoAnoInput.parentElement.querySelector(".error-message");
@@ -708,7 +708,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const vehiculoId = vehiculoIdInput.value;
       let placaCheckNeeded = false;
   
-      // Determinar si se necesita verificar la placa (nueva o si cambió)
+      
       if (!editMode) {
         placaCheckNeeded = true;
       } else {
@@ -722,19 +722,19 @@ document.addEventListener("DOMContentLoaded", () => {
         showVehiculoModalFeedback("Verificando disponibilidad de la placa...", "loading");
         try {
           const checkPlacaResponse = await fetch(
-            `/api/vehiculos?placa=${encodeURIComponent(placaInputVal)}` // MODIFIED
+            `/api/vehiculos?placa=${encodeURIComponent(placaInputVal)}` 
           );
           const checkPlacaResult = await checkPlacaResponse.json();
           let placaDuplicada = false;
   
           if (checkPlacaResponse.ok && checkPlacaResult.success && checkPlacaResult.vehiculos.length > 0) {
             if (editMode) {
-              // Si estamos editando, la placa es duplicada si existe OTRO vehículo con esa placa
+              
               if (checkPlacaResult.vehiculos.some(v => String(v.id_vehiculo) !== String(vehiculoId))) {
                 placaDuplicada = true;
               }
             } else {
-              // Si estamos creando, cualquier vehículo encontrado con esa placa es un duplicado
+              
               placaDuplicada = true;
             }
           }
@@ -750,9 +750,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if(modalVehiculoSaveButton) modalVehiculoSaveButton.disabled = false;
             return;
           }
-          showVehiculoModalFeedback("", "clear"); // Limpiar mensaje de "Verificando..."
+          showVehiculoModalFeedback("", "clear"); 
         } catch (error) {
-          console.error("Error verificando placa:", error);
+         // console.error("Error verificando placa:", error);
           showVehiculoModalFeedback("Error al verificar la placa. Intente de nuevo.", "error");
           if(modalVehiculoSaveButton) modalVehiculoSaveButton.disabled = false;
           return;
@@ -768,18 +768,18 @@ document.addEventListener("DOMContentLoaded", () => {
         marca_vehiculo: vehiculoMarcaInput.value.trim(),
         modelo_vehiculo: vehiculoModeloInput.value.trim(),
         ano_vehiculo: vehiculoAnoInput.value,
-        // Solo enviar id_cliente si estamos en modo creación y se ha asociado un cliente
+        
         id_cliente: (!editMode && clienteAsociadoIdInput && clienteAsociadoIdInput.value) ? clienteAsociadoIdInput.value : undefined,
       };
-      // Eliminar id_cliente del payload si es undefined para no enviarlo innecesariamente
+      
       if (vehiculoData.id_cliente === undefined) {
           delete vehiculoData.id_cliente;
       }
   
   
       const apiUrl = editMode
-        ? `/api/vehiculos/${vehiculoId}` // MODIFIED
-        : "/api/vehiculos"; // MODIFIED
+        ? `/api/vehiculos/${vehiculoId}` 
+        : "/api/vehiculos"; 
       const apiMethod = editMode ? "PUT" : "POST";
   
       try {
@@ -789,7 +789,7 @@ document.addEventListener("DOMContentLoaded", () => {
           body: JSON.stringify(vehiculoData),
         });
         const result = await response.json();
-        showVehiculoModalFeedback("", "clear"); // Limpiar mensaje de carga
+        showVehiculoModalFeedback("", "clear"); 
   
         if (response.ok && result.success) {
           showVehiculoModalFeedback(
@@ -798,8 +798,8 @@ document.addEventListener("DOMContentLoaded", () => {
           );
           setTimeout(() => {
             closeVehiculoModal();
-            cargarVehiculos(searchPlacaInput ? searchPlacaInput.value : ""); // Recargar tabla (con filtro si existe)
-            showActionFeedback( // Feedback global
+            cargarVehiculos(searchPlacaInput ? searchPlacaInput.value : ""); 
+            showActionFeedback( 
               `Vehículo ${placaInputVal} ${editMode ? "actualizado" : "añadido"} correctamente.`,
               "success"
             );
@@ -812,7 +812,7 @@ document.addEventListener("DOMContentLoaded", () => {
           if(modalVehiculoSaveButton) modalVehiculoSaveButton.disabled = false;
         }
       } catch (error) {
-        console.error("Error de red al guardar vehículo:", error);
+       // console.error("Error de red al guardar vehículo:", error);
         showVehiculoModalFeedback("Error de conexión al guardar. Intente nuevamente.", "error");
         if(modalVehiculoSaveButton) modalVehiculoSaveButton.disabled = false;
       }
@@ -826,7 +826,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const loadingFeedback = showActionFeedback("Eliminando vehículo...", "loading");
       try {
         const response = await fetch(
-          `/api/vehiculos/${vehiculoId}`, // MODIFIED
+          `/api/vehiculos/${vehiculoId}`, 
           { method: "DELETE" }
         );
         let result = { success: response.ok, message: "" };
@@ -841,7 +841,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
         if (response.ok && result.success) {
           showActionFeedback(result.message || "Vehículo eliminado correctamente.", "success");
-          cargarVehiculos(searchPlacaInput ? searchPlacaInput.value : ""); // Recargar con filtro actual
+          cargarVehiculos(searchPlacaInput ? searchPlacaInput.value : ""); 
         } else {
           showActionFeedback(
             result.message || "Error al eliminar el vehículo (verifique si tiene citas asociadas o si ya fue eliminado).",
@@ -850,7 +850,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       } catch (error) {
         if (loadingFeedback && loadingFeedback.parentNode) loadingFeedback.remove();
-        console.error("Error de red al eliminar vehículo:", error);
+       // console.error("Error de red al eliminar vehículo:", error);
         showActionFeedback("Error de conexión al intentar eliminar.", "error");
       }
     }
@@ -871,7 +871,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (vehiculoData) {
           openVehiculoModal(true, vehiculoData);
         } else {
-          console.error(`Vehículo con ID ${vehiculoId} no encontrado en caché para editar.`);
+         // console.error(`Vehículo con ID ${vehiculoId} no encontrado en caché para editar.`);
           showActionFeedback("Error al cargar datos del vehículo para editar.", "error");
         }
       } else if (targetButton.classList.contains("btn-delete")) {
@@ -890,11 +890,11 @@ document.addEventListener("DOMContentLoaded", () => {
      * Función de inicialización de la página.
      */
     function inicializarPagina() {
-      cargarVehiculos(); // Cargar la lista inicial de vehículos
-      console.log("Página Gestión de Vehículos cargada y lógica inicializada.");
+      cargarVehiculos(); 
+     //// console.log("Página Gestión de Vehículos cargada y lógica inicializada.");
     }
   
-    // Iniciar la página
+    
     inicializarPagina();
   });
   

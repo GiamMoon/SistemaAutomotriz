@@ -3,7 +3,7 @@ let isAuthenticatedInHead = false;
 try {
   const storedUserData = localStorage.getItem("userData");
   if (!storedUserData) {
-    console.log("Auth Check (Head): No user data. Redirecting...");
+    //console.log("Auth Check (Head): No user data. Redirecting...");
     if (!window.location.pathname.endsWith("login.html"))
       window.location.replace("login.html");
     throw new Error("Redirecting");
@@ -16,7 +16,7 @@ try {
       window.location.replace("login.html");
     throw new Error("Invalid user data.");
   }
-  console.log("Auth Check (Head): OK for user:", currentUserData.username);
+  //console.log("Auth Check (Head): OK for user:", currentUserData.username);
   isAuthenticatedInHead = true;
 } catch (e) {
   if (e.message !== "Redirecting" && e.message !== "Invalid user data.") {
