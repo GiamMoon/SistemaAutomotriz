@@ -44,6 +44,20 @@ document.addEventListener("DOMContentLoaded", () => {
     "global-feedback-container"
   );
 
+  // --- Elementos de Paginación (NUEVO) ---
+const paginationContainer = document.getElementById("citas-pagination");
+const btnPrevPage = document.getElementById("btn-prev-page");
+const btnNextPage = document.getElementById("btn-next-page");
+const pageInfoSpan = document.getElementById("page-info");
+// --- Fin Elementos de Paginación ---
+
+// --- Variables de estado para paginación (NUEVO) ---
+let allProximasCitasPendientes = []; // Almacenará TODAS las citas futuras pendientes
+let currentPage = 1;
+const itemsPerPage = 5; // Mostrar 5 citas por página
+let totalPages = 1;
+// --- Fin Variables de estado ---
+
   // Configuración inicial de la UI con datos del usuario
   if (userNameDisplay)
     userNameDisplay.textContent =
@@ -228,152 +242,72 @@ document.addEventListener("DOMContentLoaded", () => {
   /**
    * Carga los datos estadísticos y las próximas citas para el dashboard.
    */
-  async function cargarDatosDashboard() {
-    console.log("DEBUG: Cargando datos del dashboard...");
-    // Mostrar indicadores de carga
-    if (countCitasHoy) countCitasHoy.textContent = "...";
-    if (countVehiculos) countVehiculos.textContent = "...";
-    if (countClientes) countClientes.textContent = "...";
-    if (countServicios) countServicios.textContent = "...";
-    if (proximasCitasList)
-      proximasCitasList.innerHTML =
-        '<p class="text-center text-gray-500 italic">Cargando próximas citas...</p>';
+  /**
+ * Carga los datos estadísticos y las próximas citas para el dashboard.
+ */
+async function cargarDatosDashboard() {
+  console.log("DEBUG: Cargando datos del dashboard...");
+  // Mostrar indicadores de carga
+  if (countCitasHoy) countCitasHoy.textContent = "...";
+  if (countVehiculos) countVehiculos.textContent = "...";
+  if (countClientes) countClientes.textContent = "...";
+  if (countServicios) countServicios.textContent = "...";
+  if (proximasCitasList) proximasCitasList.innerHTML = '<p class="text-center text-gray-500 italic">Cargando próximas citas...</p>';
+  if (paginationContainer) paginationContainer.classList.add('hidden'); // Ocultar paginación mientras carga
 
-    try {
-      const hoy = new Date();
-      const hoyStr = hoy.toISOString().split("T")[0]; // YYYY-MM-DD para hoy
-      const proxSemana = new Date();
-      proxSemana.setDate(hoy.getDate() + 7); // Fecha dentro de 7 días
-      const proxSemanaStr = proxSemana.toISOString().split("T")[0]; // YYYY-MM-DD para próxima semana
+  try {
+    const hoy = new Date();
+    const hoyStr = hoy.toISOString().split("T")[0]; // YYYY-MM-DD para hoy
 
-      let citasHoyPendientes = 0;
-      const proximasCitasHtml = [];
+    let citasHoyPendientes = 0;
 
-      // Fetch de citas para la próxima semana (incluyendo hoy)
-      const citasResponse = await fetch(
-        `/api/citas?fecha_inicio=${hoyStr}&fecha_fin=${proxSemanaStr}` // MODIFIED
-      );
-      const citasData = await citasResponse.json();
-      console.log("DEBUG: Respuesta Citas:", citasData);
+    // --- MODIFICACIÓN: Fetch de TODAS las citas futuras pendientes ---
+    // Se quita fecha_fin para obtener todas las futuras desde hoy
+    const citasResponse = await fetch(`/api/citas?fecha_inicio=${hoyStr}`);
+    const citasData = await citasResponse.json();
+    console.log("DEBUG: Respuesta Citas (futuras):", citasData);
 
-      if (citasResponse.ok && citasData.success && citasData.citas) {
-        // Ordenar citas por fecha y hora
-        citasData.citas.sort((a, b) => {
-          const dateA = new Date(`${a.fecha_cita.split('T')[0]}T${a.hora_cita || "00:00:00"}`);
-          const dateB = new Date(`${b.fecha_cita.split('T')[0]}T${b.hora_cita || "00:00:00"}`);
-          return dateA - dateB;
+    if (citasResponse.ok && citasData.success && citasData.citas) {
+      // Filtrar por estado 'Pendiente' DESPUÉS de recibir los datos
+      allProximasCitasPendientes = citasData.citas
+        .filter(cita => cita.estado === 'Pendiente')
+        .sort((a, b) => { // Ordenar por fecha y hora ascendente (más próximas primero)
+          // Crear fechas completas para una comparación precisa
+          const dateA = new Date(`<span class="math-inline">\{a\.fecha\_cita\.split\('T'\)\[0\]\}T</span>{a.hora_cita || "00:00:00"}`);
+          const dateB = new Date(`<span class="math-inline">\{b\.fecha\_cita\.split\('T'\)\[0\]\}T</span>{b.hora_cita || "00:00:00"}`);
+          return dateA - dateB; // Orden ascendente
         });
 
-        citasData.citas.forEach((cita) => {
-          if (cita.estado === "Pendiente") {
-            const fechaCita = cita.fecha_cita.split("T")[0];
-            if (fechaCita === hoyStr) {
-              citasHoyPendientes++;
-            }
+      console.log("DEBUG: Citas pendientes futuras ordenadas:", allProximasCitasPendientes);
 
-            // Mostrar hasta 5 próximas citas pendientes
-            if (proximasCitasHtml.length < 5) {
-              const nombreCliente = `${cita.nombre_cliente || ""} ${
-                cita.apellido_cliente || ""
-              }`.trim();
-              const vehiculoDesc = `${cita.marca_vehiculo || ""} ${
-                cita.modelo_vehiculo || ""
-              } (${cita.placa_vehiculo || "S/P"})`;
+      // Contar cuántas de las próximas son para hoy
+      citasHoyPendientes = allProximasCitasPendientes.filter(cita => cita.fecha_cita.split("T")[0] === hoyStr).length;
+      if (countCitasHoy) countCitasHoy.textContent = citasHoyPendientes;
 
-              proximasCitasHtml.push(`
-                <div class="appointment-list-item flex justify-between items-center py-2 border-b border-gray-200 last:border-b-0">
-                    <div>
-                        <p class="font-medium text-gray-800">${formatDateSimple(
-                          cita.fecha_cita // Usar la fecha completa para formatear
-                        )} ${formatTimeSimple(cita.hora_cita)}</p>
-                        <p class="text-xs text-gray-600">${nombreCliente} - ${vehiculoDesc}</p>
-                    </div>
-                    <a href="admin_miscitas.html#cita-${cita.id_cita}" class="text-xs text-blue-600 hover:underline">Ver</a>
-                </div>`);
-            }
-          }
-        });
-        if (countCitasHoy) countCitasHoy.textContent = citasHoyPendientes;
-        if (proximasCitasList) {
-          proximasCitasList.innerHTML =
-            proximasCitasHtml.length > 0
-              ? proximasCitasHtml.join("")
-              : '<p class="text-center text-gray-500 italic">No hay citas pendientes próximas.</p>';
-        }
-      } else {
-        console.error("Error al cargar citas para dashboard:", citasData.message || "Respuesta no OK");
-        if (countCitasHoy) countCitasHoy.textContent = "Error";
-        if (proximasCitasList)
-          proximasCitasList.innerHTML =
-            '<p class="text-center text-red-500">Error al cargar citas.</p>';
-      }
+      // Renderizar la primera página de citas
+      currentPage = 1; // Resetear a la primera página
+      renderProximasCitasPage(); // Llamar a la función que maneja la paginación
 
-      // Fetch de conteo de vehículos
-      try {
-        const vehiculosResponse = await fetch("/api/vehiculos/count"); // MODIFIED
-        const vehiculosData = await vehiculosResponse.json();
-        console.log("DEBUG: Respuesta Vehiculos Count:", vehiculosData);
-        if (vehiculosResponse.ok && vehiculosData.success) {
-          if (countVehiculos)
-            countVehiculos.textContent = vehiculosData.total ?? "0";
-        } else {
-          console.error("Error en respuesta de /api/vehiculos/count:", vehiculosData.message);
-          if (countVehiculos) countVehiculos.textContent = "Error";
-        }
-      } catch (e) {
-        console.error("Error fetching vehicle count:", e);
-        if (countVehiculos) countVehiculos.textContent = "Error";
-      }
-
-      // Fetch de conteo de clientes
-      try {
-        const clientesResponse = await fetch("/api/clientes/count"); // MODIFIED
-        const clientesData = await clientesResponse.json();
-        console.log("DEBUG: Respuesta Clientes Count:", clientesData);
-        if (clientesResponse.ok && clientesData.success) {
-          if (countClientes)
-            countClientes.textContent = clientesData.total ?? "0";
-        } else {
-          console.error("Error en respuesta de /api/clientes/count:", clientesData.message);
-          if (countClientes) countClientes.textContent = "Error";
-        }
-      } catch (e) {
-        console.error("Error fetching client count:", e);
-        if (countClientes) countClientes.textContent = "Error";
-      }
-
-      // Fetch de conteo de servicios activos
-      try {
-        const serviciosResponse = await fetch("/api/servicios?activos=true"); // MODIFIED
-        const serviciosData = await serviciosResponse.json();
-        console.log("DEBUG: Respuesta Servicios Activos:", serviciosData);
-        if (
-          serviciosResponse.ok &&
-          serviciosData.success &&
-          serviciosData.servicios
-        ) {
-          if (countServicios)
-            countServicios.textContent = serviciosData.servicios.length;
-        } else {
-          console.error("Error en respuesta de /api/servicios?activos=true:", serviciosData.message);
-          if (countServicios) countServicios.textContent = "Error";
-        }
-      } catch (e) {
-        console.error("Error fetching active services count:", e);
-        if (countServicios) countServicios.textContent = "Error";
-      }
-    } catch (error) {
-      console.error("Error general cargando datos del dashboard:", error);
-      // Mostrar error en todos los contadores y lista
+    } else {
+      console.error("Error al cargar citas para dashboard:", citasData.message || "Respuesta no OK");
       if (countCitasHoy) countCitasHoy.textContent = "Error";
-      if (countVehiculos) countVehiculos.textContent = "Error";
-      if (countClientes) countClientes.textContent = "Error";
-      if (countServicios) countServicios.textContent = "Error";
-      if (proximasCitasList)
-        proximasCitasList.innerHTML =
-          '<p class="text-center text-red-500">Error de conexión al cargar datos.</p>';
+      if (proximasCitasList) proximasCitasList.innerHTML = '<p class="text-center text-red-500">Error al cargar citas.</p>';
+      if (paginationContainer) paginationContainer.classList.add('hidden');
     }
+
+    // --- Fetch de otros contadores (sin cambios) ---
+    try { const vehiculosResponse = await fetch("/api/vehiculos/count"); const vehiculosData = await vehiculosResponse.json(); if (vehiculosResponse.ok && vehiculosData.success) { if (countVehiculos) countVehiculos.textContent = vehiculosData.total ?? "0"; } else { console.error("Error en respuesta de /api/vehiculos/count:", vehiculosData.message); if (countVehiculos) countVehiculos.textContent = "Error"; } } catch (e) { console.error("Error fetching vehicle count:", e); if (countVehiculos) countVehiculos.textContent = "Error"; }
+    try { const clientesResponse = await fetch("/api/clientes/count"); const clientesData = await clientesResponse.json(); if (clientesResponse.ok && clientesData.success) { if (countClientes) countClientes.textContent = clientesData.total ?? "0"; } else { console.error("Error en respuesta de /api/clientes/count:", clientesData.message); if (countClientes) countClientes.textContent = "Error"; } } catch (e) { console.error("Error fetching client count:", e); if (countClientes) countClientes.textContent = "Error"; }
+    try { const serviciosResponse = await fetch("/api/servicios?activos=true"); const serviciosData = await serviciosResponse.json(); if (serviciosResponse.ok && serviciosData.success && serviciosData.servicios) { if (countServicios) countServicios.textContent = serviciosData.servicios.length; } else { console.error("Error en respuesta de /api/servicios?activos=true:", serviciosData.message); if (countServicios) countServicios.textContent = "Error"; } } catch (e) { console.error("Error fetching active services count:", e); if (countServicios) countServicios.textContent = "Error"; }
+    // --- Fin Fetch otros contadores ---
+
+  } catch (error) {
+    console.error("Error general cargando datos del dashboard:", error);
+    if (countCitasHoy) countCitasHoy.textContent = "Error"; if (countVehiculos) countVehiculos.textContent = "Error"; if (countClientes) countClientes.textContent = "Error"; if (countServicios) countServicios.textContent = "Error";
+    if (proximasCitasList) proximasCitasList.innerHTML = '<p class="text-center text-red-500">Error de conexión al cargar datos.</p>';
+    if (paginationContainer) paginationContainer.classList.add('hidden');
   }
+}
 
   /**
    * Maneja la subida de un nuevo avatar para el usuario.
@@ -482,12 +416,95 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // --- Funciones de Paginación (NUEVO) ---
+/**
+ * Renderiza la página actual de citas próximas pendientes.
+ */
+function renderProximasCitasPage() {
+  if (!proximasCitasList || !paginationContainer) {
+      console.error("Elementos de lista o paginación no encontrados");
+      return;
+  }
+
+  // Calcular índices para la página actual
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const citasPaginaActual = allProximasCitasPendientes.slice(startIndex, endIndex);
+
+  proximasCitasList.innerHTML = ""; // Limpiar lista
+
+  if (citasPaginaActual.length === 0 && currentPage === 1) {
+    // Mostrar mensaje si no hay citas en total
+    proximasCitasList.innerHTML = '<p class="text-center text-gray-500 italic">No hay citas pendientes próximas.</p>';
+    paginationContainer.classList.add('hidden'); // Ocultar paginación si no hay citas
+  } else if (citasPaginaActual.length === 0 && currentPage > 1) {
+     // Mensaje si se intenta ir a una página vacía (no debería pasar con botones deshabilitados)
+     proximasCitasList.innerHTML = '<p class="text-center text-gray-500 italic">No hay más citas para mostrar en esta página.</p>';
+     paginationContainer.classList.remove('hidden'); // Mantener paginación visible
+  } else {
+    // Renderizar las citas de la página actual
+    citasPaginaActual.forEach(cita => {
+      const nombreCliente = `${cita.nombre_cliente || ""} ${cita.apellido_cliente || ""}`.trim();
+      // Asegúrate que los nombres de campo coincidan con los de tu API (marca_vehiculo, modelo_vehiculo, etc.)
+      const vehiculoDesc = `${cita.marca_vehiculo || "Marca Desc."} <span class="math-inline">\{cita\.modelo\_vehiculo \|\| "Modelo Desc\."\} \(</span>{cita.placa_vehiculo || "S/P"})`;
+      const div = document.createElement('div');
+      div.className = "appointment-list-item flex justify-between items-center py-2 border-b border-gray-200 last:border-b-0";
+      div.innerHTML = `
+        <div>
+          <p class="font-medium text-gray-800">${formatDateSimple(cita.fecha_cita)} <span class="math-inline">\{formatTimeSimple\(cita\.hora\_cita\)\}</p\>
+<p class\="text\-xs text\-gray\-600"\></span>{nombreCliente} - <span class="math-inline">\{vehiculoDesc\}</p\>
+</div\>
+<a href\="admin\_miscitas\.html\#cita\-</span>{cita.id_cita}" class="text-xs text-blue-600 hover:underline">Ver</a>
+      `;
+      proximasCitasList.appendChild(div);
+    });
+    paginationContainer.classList.remove('hidden'); // Mostrar paginación si hay citas
+  }
+
+  renderPaginationControls(); // Actualizar estado de botones y texto
+}
+
+/**
+ * Actualiza los controles de paginación (botones y texto).
+ */
+function renderPaginationControls() {
+  if (!paginationContainer || !pageInfoSpan || !btnPrevPage || !btnNextPage) return;
+
+  totalPages = Math.ceil(allProximasCitasPendientes.length / itemsPerPage);
+  if (totalPages <= 0) totalPages = 1; // Evitar 0 páginas
+
+  pageInfoSpan.textContent = `Página ${currentPage} de ${totalPages}`;
+  btnPrevPage.disabled = currentPage === 1;
+  btnNextPage.disabled = currentPage === totalPages || allProximasCitasPendientes.length === 0;
+}
+// --- Fin Funciones de Paginación ---
+
   // Event Listeners
   if (logoutButton)
     logoutButton.addEventListener("click", () => {
       localStorage.removeItem("userData"); // Limpiar datos de sesión
       window.location.replace("login.html"); // Redirigir a login
     });
+
+
+  // --- Event Listeners de Paginación (NUEVO) ---
+if(btnPrevPage) {
+  btnPrevPage.addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      renderProximasCitasPage(); // Renderizar la página anterior
+    }
+  });
+}
+if(btnNextPage) {
+  btnNextPage.addEventListener('click', () => {
+    if (currentPage < totalPages) {
+      currentPage++;
+      renderProximasCitasPage(); // Renderizar la página siguiente
+    }
+  });
+}
+// --- Fin Event Listeners de Paginación ---
 
   // Para el botón de cámara en el sidebar
   if (uploadAvatarTrigger && avatarUploadInput) {
