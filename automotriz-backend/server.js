@@ -24,7 +24,7 @@ app.use(
                 "script-src": ["'self'", "https://cdn.tailwindcss.com", "'unsafe-inline'"],
                 "style-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "'unsafe-inline'"],
                 "font-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.gstatic.com"],
-                "img-src": ["'self'", `http://localhost:${port}`, "https://*.onrender.com", "https://placehold.co", "data:"],
+                "img-src": ["'self'", `http://localhost:${port}`, "https://*.onrender.com", "https://placehold.co", "data:", `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`],
                 "connect-src": ["'self'", "https://*.onrender.com", `http://localhost:${port}`, `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`],
             },
         },
@@ -259,8 +259,7 @@ app.post('/api/register', [
     }
 });
 
-app.post('/api/users/:id/avatar', [
-    authenticateToken,
+app.post('/api/users/:id/avatar', authenticateToken, [
     param('id').isInt({ gt: 0 }).withMessage('ID de usuario inválido.')
 ], upload.single('avatar'), handleMulterError, async (req, res) => {
     const errors = validationResult(req);
