@@ -204,82 +204,68 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // --- Función formatDateTime (CON LOGS DETALLADOS PARA DEPURACIÓN DE ZONA HORARIA) ---
   function formatDateTime(dateTimeString) {
     if (!dateTimeString || dateTimeString === "N/A") {
       return "N/A";
     }
 
-    console.log("[formatDateTime] Original dateTimeString:", dateTimeString);
+    console.log("[formatDateTime] 1. Original dateTimeString:", dateTimeString, "(Tipo:", typeof dateTimeString, ")");
 
     try {
-      let dateInput = String(dateTimeString);
+      let dateInputStr = String(dateTimeString);
 
-      // Verificar si la cadena ya tiene un designador de zona horaria (Z o +/-HH:MM)
-      const hasTimeZoneSpecifier = /Z|[+-]\d{2}:\d{2}$/.test(dateInput);
-
-      if (!hasTimeZoneSpecifier) {
-        // Si no tiene 'Z' ni offset, y parece un formato YYYY-MM-DD HH:MM:SS,
-        // asumimos que es UTC y le añadimos 'Z'.
-        // Esto es crucial si el backend envía UTC pero omite el designador.
-        if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(dateInput)) {
-          // Reemplazar espacio por T si existe, y añadir Z si no está.
-          dateInput = dateInput.replace(' ', 'T') + 'Z';
-          console.log("[formatDateTime] Assuming UTC, appended 'Z':", dateInput);
-        }
+      // Paso 1: Normalizar la cadena de entrada para que sea más compatible con new Date()
+      // Reemplazar espacio entre fecha y hora con 'T' si existe
+      if (dateInputStr.includes(' ') && !dateInputStr.includes('T')) {
+        dateInputStr = dateInputStr.replace(' ', 'T');
+        console.log("[formatDateTime] 2. Replaced space with T:", dateInputStr);
       }
 
-      const date = new Date(dateInput);
-      console.log("[formatDateTime] Parsed Date object (toString):", date.toString()); // Muestra en la zona horaria del navegador
-      console.log("[formatDateTime] Parsed Date object (toISOString):", date.toISOString()); // Muestra en UTC
+      // Paso 2: Asegurar que la cadena sea tratada como UTC si no tiene designador de zona horaria
+      // Regex para detectar si ya tiene 'Z' o un offset como +05:00 o -0300
+      const hasTimeZoneSpecifier = /Z|[+-]\d{2}(:?\d{2})?$/.test(dateInputStr);
+
+      if (!hasTimeZoneSpecifier && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(dateInputStr)) {
+        // Si parece un formato ISO local y no tiene 'Z', la añadimos para que new Date() la trate como UTC.
+        dateInputStr += 'Z';
+        console.log("[formatDateTime] 3. Assumed UTC, appended 'Z':", dateInputStr);
+      } else if (hasTimeZoneSpecifier) {
+        console.log("[formatDateTime] 3. Input string already has a time zone specifier:", dateInputStr);
+      } else {
+        console.warn("[formatDateTime] 3. Input string format is not a recognized ISO-like format or already has TZ. Proceeding as is:", dateInputStr);
+      }
+
+      const date = new Date(dateInputStr);
+      console.log("[formatDateTime] 4. Parsed Date object (toString() - local del navegador):", date.toString());
+      console.log("[formatDateTime] 5. Parsed Date object (toISOString() - UTC):", date.toISOString());
+
 
       if (isNaN(date.getTime())) {
-        console.error("[formatDateTime] Invalid Date after parsing:", dateInput);
+        console.error("[formatDateTime] 6. Invalid Date after parsing:", dateInputStr);
         return "Fecha inválida";
       }
 
-      // Formatear a la zona horaria de Lima
+      // Paso 3: Formatear a la zona horaria de Lima
       const options = {
         day: "2-digit",
         month: "short",
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
+        // second: "2-digit", // Descomentar si también quieres mostrar segundos
         hour12: true,
         timeZone: 'America/Lima' // Forzar la visualización en la zona horaria de Lima
       };
       const formattedDate = date.toLocaleString("es-PE", options);
-      console.log("[formatDateTime] Formatted Date (America/Lima):", formattedDate);
+      console.log("[formatDateTime] 7. Formatted Date (America/Lima):", formattedDate);
       return formattedDate;
 
     } catch (e) {
-      console.error("[formatDateTime] Error formateando fecha/hora:", dateTimeString, e);
+      console.error("[formatDateTime] Error crítico formateando fecha/hora:", dateTimeString, e);
       return "Fecha inválida";
     }
   }
-  function formatDate(dateString) {
-    if (!dateString || dateString === "N/A") return "N/A";
-    try {
-      const datePart = dateString.split("T")[0];
-      const parts = datePart.split("-");
-      if (parts.length !== 3) return "Formato inválido";
-
-      const date = new Date(
-        Date.UTC(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
-      );
-      if (isNaN(date.getTime())) return "Fecha inválida";
-
-      return date.toLocaleDateString("es-PE", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-      });
-    } catch (e) {
-      console.error("Error formateando fecha:", dateString, e);
-      return "Fecha inválida";
-    }
-  }
-
   function formatTime(timeString) {
     if (!timeString || timeString === "N/A") return "";
     try {
