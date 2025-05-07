@@ -102,6 +102,20 @@ const dbPool = new Pool({
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : undefined // Necesario para Render DB
 });
 
+// ---- MODIFICACIÓN PARA LA ZONA HORARIA ----
+// Establecer la zona horaria para todas las nuevas conexiones en el pool
+dbPool.on('connect', (client) => {
+    client.query("SET TIME ZONE 'America/Lima'", (err) => {
+        if (err) {
+            console.error('Error al configurar la zona horaria para la nueva conexión a la base de datos:', err);
+        } else {
+            // Opcional: puedes loguear si se estableció correctamente para una conexión
+            // console.log('Zona horaria establecida a America/Lima para una nueva conexión de BD.');
+        }
+    });
+});
+// ---- FIN DE LA MODIFICACIÓN ----
+
 // Test de conexión a la BD
 async function testDbConnection() {
     let client;
@@ -1036,4 +1050,3 @@ async function gracefulShutdown() {
 }
 process.on('SIGINT', gracefulShutdown); // Ctrl+C
 process.on('SIGTERM', gracefulShutdown); // 'kill' (Render usa esto)
-
