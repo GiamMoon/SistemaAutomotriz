@@ -21,28 +21,47 @@ app.use(
             directives: {
                 ...helmet.contentSecurityPolicy.getDefaultDirectives(),
                 "default-src": ["'self'"],
-                "script-src": ["'self'", "https://cdn.tailwindcss.com", "'unsafe-inline'"], // 'unsafe-inline' es riesgoso, considerar alternativas
-                "style-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "'unsafe-inline'"], // 'unsafe-inline' es riesgoso
+                "script-src": ["'self'", "https://cdn.tailwindcss.com", "'unsafe-inline'"], // Permite scripts inline y desde el CDN de Tailwind
+                // MODIFICACIÓN AQUÍ: Permitir atributos inline como onerror
+                "script-src-attr": ["'self'", "'unsafe-inline'"],
+                "style-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "'unsafe-inline'"],
                 "font-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.gstatic.com"],
-                "img-src": ["'self'", `http://localhost:${port}`, "https://*.onrender.com", "https://placehold.co", "data:", `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`],
-                "connect-src": ["'self'", "https://*.onrender.com", `http://localhost:${port}`, `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`],
+                // Ajustado para incluir la URL externa de Render si está disponible
+                "img-src": [
+                    "'self'",
+                    `http://localhost:${port}`,
+                    "https://*.onrender.com", // Permite subdominios de onrender.com
+                    "https://placehold.co",
+                    "data:",
+                    process.env.RENDER_EXTERNAL_URL ? process.env.RENDER_EXTERNAL_URL : "'none'", // Permite la URL principal de Render
+                    // Descomentar la siguiente línea si RENDER_EXTERNAL_HOSTNAME es diferente y necesario
+                    // `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`
+                ],
+                 // Ajustado para incluir la URL externa de Render si está disponible
+                "connect-src": [
+                    "'self'",
+                    `http://localhost:${port}`,
+                    process.env.RENDER_EXTERNAL_URL ? process.env.RENDER_EXTERNAL_URL : "'none'", // Permite la URL principal de Render
+                    // `https://${process.env.RENDER_EXTERNAL_HOSTNAME}` // Descomentar si es necesario
+                ],
             },
         },
     })
 );
 
+
 const allowedOrigins = [
     `http://localhost:${port}`,
     'http://127.0.0.1:5500', // Común para Live Server de VSCode
-    `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`
-];
-if (process.env.RENDER_EXTERNAL_URL) {
-    allowedOrigins.push(process.env.RENDER_EXTERNAL_URL);
-}
+    process.env.RENDER_EXTERNAL_URL // Usar la URL externa principal de Render
+    // `https://${process.env.RENDER_EXTERNAL_HOSTNAME}` // Añadir si es diferente y necesario
+].filter(Boolean); // Elimina entradas nulas/undefined si las variables no están seteadas
+
+console.log("Orígenes CORS permitidos:", allowedOrigins);
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Permitir solicitudes sin origen (ej. Postman, curl) o desde localhost/Render
+        // Permitir solicitudes sin origen (ej. Postman, curl) o desde orígenes permitidos
         if (!origin || origin === "null" || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
@@ -375,7 +394,6 @@ app.post('/api/citas', [ // Eliminado authenticateToken
         const clientesExistentesResult = await client.query( 'SELECT id_cliente FROM Clientes WHERE telefono = $1', [telefono_cliente] );
         if (clientesExistentesResult.rows.length > 0) {
             clienteId = clientesExistentesResult.rows[0].id_cliente;
-            // Opcional: Actualizar datos del cliente si es necesario
         } else {
             const clienteResult = await client.query(
                 'INSERT INTO Clientes (nombres, apellidos, email, telefono) VALUES ($1, $2, $3, $4) RETURNING id_cliente',
@@ -399,7 +417,6 @@ app.post('/api/citas', [ // Eliminado authenticateToken
             vehiculoId = vehiculoResult.rows[0].id_vehiculo;
         } else {
             vehiculoId = vehiculo_registrado_id;
-            // Validar que el vehículo pertenezca al cliente
             const vehiculoValidoResult = await client.query(
                 'SELECT id_vehiculo FROM Vehiculos WHERE id_vehiculo = $1 AND id_cliente = $2',
                 [vehiculoId, clienteId]
@@ -413,7 +430,7 @@ app.post('/api/citas', [ // Eliminado authenticateToken
         // Lógica para Servicio
         let servicioParaGuardar = null;
         if (servicio_id && servicio_id !== 'otros' && !isNaN(parseInt(servicio_id))) {
-            servicioParaGuardar = `Servicio ID: ${parseInt(servicio_id)}`; // O guardar solo el ID numérico
+            servicioParaGuardar = `Servicio ID: ${parseInt(servicio_id)}`;
         } else if (servicio_id === 'otros') {
             servicioParaGuardar = "Otros servicios / Diagnóstico";
         } else {
@@ -436,13 +453,9 @@ app.post('/api/citas', [ // Eliminado authenticateToken
     } catch (error) {
         if (client) await client.query('ROLLBACK');
         console.error('Error durante la transacción de base de datos (/api/citas POST):', error);
-        if (error.code === '23505') { // Unique violation
-            return res.status(409).json({ success: false, message: `Error: El valor para un campo único ya existe (ej. placa).` });
-        } else if (error.code === '23503') { // Foreign key violation
-            return res.status(400).json({ success: false, message: 'Error: El cliente o el vehículo seleccionado no es válido o no existe.' });
-        } else {
-            return res.status(500).json({ success: false, message: 'Error interno al registrar la cita.' });
-        }
+        if (error.code === '23505') { return res.status(409).json({ success: false, message: `Error: El valor para un campo único ya existe (ej. placa).` }); }
+        else if (error.code === '23503') { return res.status(400).json({ success: false, message: 'Error: El cliente o el vehículo seleccionado no es válido o no existe.' }); }
+        else { return res.status(500).json({ success: false, message: 'Error interno al registrar la cita.' }); }
     } finally {
         if (client) client.release();
     }
@@ -980,7 +993,7 @@ app.delete('/api/vehiculos/:id', [ // Eliminado authenticateToken y adminOnly
     }
 });
 
-// Rutas de conteo (SIN authenticateToken, SIN adminOnly)
+// Rutas de conteo (SIN seguridad)
 app.get('/api/vehiculos/count', async (req, res) => { // Eliminado authenticateToken y adminOnly
     try {
         const result = await dbPool.query('SELECT COUNT(*) as total FROM Vehiculos');
