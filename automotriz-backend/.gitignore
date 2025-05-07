@@ -1,3 +1,14 @@
-.env
+# Node modules
 node_modules/
-uploads/
+**/node_modules/
+
+# Archivos de entorno
+.env
+**/.env
+
+# Directorio de uploads del backend (si no quieres versionarlo)
+automotriz-backend/uploads/
+
+# Archivos de sistema operativo
+.DS_Store
+Thumbs.db
