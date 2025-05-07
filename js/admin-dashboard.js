@@ -416,68 +416,70 @@ async function cargarDatosDashboard() {
     }
   }
 
-  // --- Funciones de Paginación (NUEVO) ---
-/**
- * Renderiza la página actual de citas próximas pendientes.
- */
-function renderProximasCitasPage() {
-  if (!proximasCitasList || !paginationContainer) {
-      console.error("Elementos de lista o paginación no encontrados");
-      return;
+// --- Funciones de Paginación (CORREGIDA) ---
+  /**
+   * Renderiza la página actual de citas próximas pendientes.
+   */
+  function renderProximasCitasPage() {
+    if (!proximasCitasList || !paginationContainer) {
+        console.error("Elementos de lista o paginación no encontrados");
+        return;
+    }
+
+    // Calcular índices para la página actual
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const citasPaginaActual = allProximasCitasPendientes.slice(startIndex, endIndex);
+
+    proximasCitasList.innerHTML = ""; // Limpiar lista
+
+    if (citasPaginaActual.length === 0 && currentPage === 1) {
+      // Mostrar mensaje si no hay citas en total
+      proximasCitasList.innerHTML = '<p class="text-center text-gray-500 italic">No hay citas pendientes próximas.</p>';
+      paginationContainer.classList.add('hidden'); // Ocultar paginación si no hay citas
+    } else if (citasPaginaActual.length === 0 && currentPage > 1) {
+       // Mensaje si se intenta ir a una página vacía (no debería pasar con botones deshabilitados)
+       proximasCitasList.innerHTML = '<p class="text-center text-gray-500 italic">No hay más citas para mostrar en esta página.</p>';
+       paginationContainer.classList.remove('hidden'); // Mantener paginación visible
+    } else {
+      // Renderizar las citas de la página actual
+      citasPaginaActual.forEach(cita => {
+        const nombreCliente = `${cita.nombre_cliente || ""} ${cita.apellido_cliente || ""}`.trim();
+        // Asegúrate que los nombres de campo coincidan con los de tu API (marca_vehiculo, modelo_vehiculo, etc.)
+        const vehiculoDesc = `${cita.marca_vehiculo || "Marca Desc."} ${cita.modelo_vehiculo || "Modelo Desc."} (${cita.placa_vehiculo || "S/P"})`;
+        const div = document.createElement('div');
+        div.className = "appointment-list-item flex justify-between items-center py-2 border-b border-gray-200 last:border-b-0";
+        // *** CORRECCIÓN DE FORMATO AQUÍ ***
+        // Usar template literals correctamente para insertar las variables
+        div.innerHTML = `
+          <div>
+            <p class="font-medium text-gray-800">${formatDateSimple(cita.fecha_cita)} ${formatTimeSimple(cita.hora_cita)}</p>
+            <p class="text-xs text-gray-600">${nombreCliente} - ${vehiculoDesc}</p>
+          </div>
+          <a href="admin_miscitas.html#cita-${cita.id_cita}" class="text-xs text-blue-600 hover:underline">Ver</a>
+        `;
+        proximasCitasList.appendChild(div);
+      });
+      paginationContainer.classList.remove('hidden'); // Mostrar paginación si hay citas
+    }
+
+    renderPaginationControls(); // Actualizar estado de botones y texto
   }
 
-  // Calcular índices para la página actual
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const citasPaginaActual = allProximasCitasPendientes.slice(startIndex, endIndex);
+  /**
+   * Actualiza los controles de paginación (botones y texto).
+   */
+  function renderPaginationControls() {
+    if (!paginationContainer || !pageInfoSpan || !btnPrevPage || !btnNextPage) return;
 
-  proximasCitasList.innerHTML = ""; // Limpiar lista
+    totalPages = Math.ceil(allProximasCitasPendientes.length / itemsPerPage);
+    if (totalPages <= 0) totalPages = 1; // Evitar 0 páginas
 
-  if (citasPaginaActual.length === 0 && currentPage === 1) {
-    // Mostrar mensaje si no hay citas en total
-    proximasCitasList.innerHTML = '<p class="text-center text-gray-500 italic">No hay citas pendientes próximas.</p>';
-    paginationContainer.classList.add('hidden'); // Ocultar paginación si no hay citas
-  } else if (citasPaginaActual.length === 0 && currentPage > 1) {
-     // Mensaje si se intenta ir a una página vacía (no debería pasar con botones deshabilitados)
-     proximasCitasList.innerHTML = '<p class="text-center text-gray-500 italic">No hay más citas para mostrar en esta página.</p>';
-     paginationContainer.classList.remove('hidden'); // Mantener paginación visible
-  } else {
-    // Renderizar las citas de la página actual
-    citasPaginaActual.forEach(cita => {
-      const nombreCliente = `${cita.nombre_cliente || ""} ${cita.apellido_cliente || ""}`.trim();
-      // Asegúrate que los nombres de campo coincidan con los de tu API (marca_vehiculo, modelo_vehiculo, etc.)
-      const vehiculoDesc = `${cita.marca_vehiculo || "Marca Desc."} <span class="math-inline">\{cita\.modelo\_vehiculo \|\| "Modelo Desc\."\} \(</span>{cita.placa_vehiculo || "S/P"})`;
-      const div = document.createElement('div');
-      div.className = "appointment-list-item flex justify-between items-center py-2 border-b border-gray-200 last:border-b-0";
-      div.innerHTML = `
-        <div>
-          <p class="font-medium text-gray-800">${formatDateSimple(cita.fecha_cita)} <span class="math-inline">\{formatTimeSimple\(cita\.hora\_cita\)\}</p\>
-<p class\="text\-xs text\-gray\-600"\></span>{nombreCliente} - <span class="math-inline">\{vehiculoDesc\}</p\>
-</div\>
-<a href\="admin\_miscitas\.html\#cita\-</span>{cita.id_cita}" class="text-xs text-blue-600 hover:underline">Ver</a>
-      `;
-      proximasCitasList.appendChild(div);
-    });
-    paginationContainer.classList.remove('hidden'); // Mostrar paginación si hay citas
+    pageInfoSpan.textContent = `Página ${currentPage} de ${totalPages}`;
+    btnPrevPage.disabled = currentPage === 1;
+    btnNextPage.disabled = currentPage === totalPages || allProximasCitasPendientes.length === 0;
   }
-
-  renderPaginationControls(); // Actualizar estado de botones y texto
-}
-
-/**
- * Actualiza los controles de paginación (botones y texto).
- */
-function renderPaginationControls() {
-  if (!paginationContainer || !pageInfoSpan || !btnPrevPage || !btnNextPage) return;
-
-  totalPages = Math.ceil(allProximasCitasPendientes.length / itemsPerPage);
-  if (totalPages <= 0) totalPages = 1; // Evitar 0 páginas
-
-  pageInfoSpan.textContent = `Página ${currentPage} de ${totalPages}`;
-  btnPrevPage.disabled = currentPage === 1;
-  btnNextPage.disabled = currentPage === totalPages || allProximasCitasPendientes.length === 0;
-}
-// --- Fin Funciones de Paginación ---
+  // --- Fin Funciones de Paginación ---
 
   // Event Listeners
   if (logoutButton)
