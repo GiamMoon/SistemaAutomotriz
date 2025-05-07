@@ -245,69 +245,71 @@ let totalPages = 1;
   /**
  * Carga los datos estadísticos y las próximas citas para el dashboard.
  */
-async function cargarDatosDashboard() {
-  console.log("DEBUG: Cargando datos del dashboard...");
-  // Mostrar indicadores de carga
-  if (countCitasHoy) countCitasHoy.textContent = "...";
-  if (countVehiculos) countVehiculos.textContent = "...";
-  if (countClientes) countClientes.textContent = "...";
-  if (countServicios) countServicios.textContent = "...";
-  if (proximasCitasList) proximasCitasList.innerHTML = '<p class="text-center text-gray-500 italic">Cargando próximas citas...</p>';
-  if (paginationContainer) paginationContainer.classList.add('hidden'); // Ocultar paginación mientras carga
+  async function cargarDatosDashboard() {
+    console.log("DEBUG: Cargando datos del dashboard...");
+    // Mostrar indicadores de carga
+    if (countCitasHoy) countCitasHoy.textContent = "...";
+    if (countVehiculos) countVehiculos.textContent = "...";
+    if (countClientes) countClientes.textContent = "...";
+    if (countServicios) countServicios.textContent = "...";
+    if (proximasCitasList) proximasCitasList.innerHTML = '<p class="text-center text-gray-500 italic">Cargando próximas citas...</p>';
+    if (paginationContainer) paginationContainer.classList.add('hidden'); // Ocultar paginación mientras carga
 
-  try {
-    const hoy = new Date();
-    const hoyStr = hoy.toISOString().split("T")[0]; // YYYY-MM-DD para hoy
+    try {
+      const hoy = new Date();
+      const hoyStr = hoy.toISOString().split("T")[0]; // YYYY-MM-DD para hoy
 
-    let citasHoyPendientes = 0;
+      let citasHoyPendientes = 0;
 
-    // --- MODIFICACIÓN: Fetch de TODAS las citas futuras pendientes ---
-    // Se quita fecha_fin para obtener todas las futuras desde hoy
-    const citasResponse = await fetch(`/api/citas?fecha_inicio=${hoyStr}`);
-    const citasData = await citasResponse.json();
-    console.log("DEBUG: Respuesta Citas (futuras):", citasData);
+      // Fetch de TODAS las citas futuras pendientes
+      // Pedimos todas las citas desde hoy en adelante
+      const citasResponse = await fetch(`/api/citas?fecha_inicio=${hoyStr}`);
+      const citasData = await citasResponse.json();
+      console.log("DEBUG: Respuesta Citas (futuras):", citasData);
 
-    if (citasResponse.ok && citasData.success && citasData.citas) {
-      // Filtrar por estado 'Pendiente' DESPUÉS de recibir los datos
-      allProximasCitasPendientes = citasData.citas
-        .filter(cita => cita.estado === 'Pendiente')
-        .sort((a, b) => { // Ordenar por fecha y hora ascendente (más próximas primero)
-          // Crear fechas completas para una comparación precisa
-          const dateA = new Date(`<span class="math-inline">\{a\.fecha\_cita\.split\('T'\)\[0\]\}T</span>{a.hora_cita || "00:00:00"}`);
-          const dateB = new Date(`<span class="math-inline">\{b\.fecha\_cita\.split\('T'\)\[0\]\}T</span>{b.hora_cita || "00:00:00"}`);
-          return dateB - dateA; // Orden ascendente
-        });
+      if (citasResponse.ok && citasData.success && citasData.citas) {
+        // Filtrar por estado 'Pendiente' DESPUÉS de recibir los datos
+        allProximasCitasPendientes = citasData.citas
+          .filter(cita => cita.estado === 'Pendiente')
+          .sort((a, b) => { // Ordenar por fecha y hora ascendente (más próximas primero)
+            // *** CORRECCIÓN CRÍTICA AQUÍ para la construcción de las fechas ***
+            const dateAString = `${a.fecha_cita.split('T')[0]}T${a.hora_cita || "00:00:00"}`;
+            const dateBString = `${b.fecha_cita.split('T')[0]}T${b.hora_cita || "00:00:00"}`;
+            const dateA = new Date(dateAString);
+            const dateB = new Date(dateBString);
+            return dateA - dateB; // Orden ascendente (más cercanas primero)
+          });
 
-      console.log("DEBUG: Citas pendientes futuras ordenadas:", allProximasCitasPendientes);
+        // Log para depurar el orden del array
+        console.log("DEBUG: Citas pendientes futuras ordenadas (allProximasCitasPendientes):", JSON.stringify(allProximasCitasPendientes.map(c => ({fecha: c.fecha_cita, hora: c.hora_cita}))));
 
-      // Contar cuántas de las próximas son para hoy
-      citasHoyPendientes = allProximasCitasPendientes.filter(cita => cita.fecha_cita.split("T")[0] === hoyStr).length;
-      if (countCitasHoy) countCitasHoy.textContent = citasHoyPendientes;
+        // Contar cuántas de las próximas son para hoy
+        citasHoyPendientes = allProximasCitasPendientes.filter(cita => cita.fecha_cita.split("T")[0] === hoyStr).length;
+        if (countCitasHoy) countCitasHoy.textContent = citasHoyPendientes;
 
-      // Renderizar la primera página de citas
-      currentPage = 1; // Resetear a la primera página
-      renderProximasCitasPage(); // Llamar a la función que maneja la paginación
+        // Renderizar la primera página de citas
+        currentPage = 1; // Resetear a la primera página
+        renderProximasCitasPage(); // Llamar a la función que maneja la paginación
 
-    } else {
-      console.error("Error al cargar citas para dashboard:", citasData.message || "Respuesta no OK");
-      if (countCitasHoy) countCitasHoy.textContent = "Error";
-      if (proximasCitasList) proximasCitasList.innerHTML = '<p class="text-center text-red-500">Error al cargar citas.</p>';
+      } else {
+        console.error("Error al cargar citas para dashboard:", citasData.message || "Respuesta no OK");
+        if (countCitasHoy) countCitasHoy.textContent = "Error";
+        if (proximasCitasList) proximasCitasList.innerHTML = '<p class="text-center text-red-500">Error al cargar citas.</p>';
+        if (paginationContainer) paginationContainer.classList.add('hidden');
+      }
+
+      // Fetch de otros contadores (sin cambios en esta parte)
+      try { const vehiculosResponse = await fetch("/api/vehiculos/count"); const vehiculosData = await vehiculosResponse.json(); if (vehiculosResponse.ok && vehiculosData.success) { if (countVehiculos) countVehiculos.textContent = vehiculosData.total ?? "0"; } else { console.error("Error en respuesta de /api/vehiculos/count:", vehiculosData.message); if (countVehiculos) countVehiculos.textContent = "Error"; } } catch (e) { console.error("Error fetching vehicle count:", e); if (countVehiculos) countVehiculos.textContent = "Error"; }
+      try { const clientesResponse = await fetch("/api/clientes/count"); const clientesData = await clientesResponse.json(); if (clientesResponse.ok && clientesData.success) { if (countClientes) countClientes.textContent = clientesData.total ?? "0"; } else { console.error("Error en respuesta de /api/clientes/count:", clientesData.message); if (countClientes) countClientes.textContent = "Error"; } } catch (e) { console.error("Error fetching client count:", e); if (countClientes) countClientes.textContent = "Error"; }
+      try { const serviciosResponse = await fetch("/api/servicios?activos=true"); const serviciosData = await serviciosResponse.json(); if (serviciosResponse.ok && serviciosData.success && serviciosData.servicios) { if (countServicios) countServicios.textContent = serviciosData.servicios.length; } else { console.error("Error en respuesta de /api/servicios?activos=true:", serviciosData.message); if (countServicios) countServicios.textContent = "Error"; } } catch (e) { console.error("Error fetching active services count:", e); if (countServicios) countServicios.textContent = "Error"; }
+
+    } catch (error) {
+      console.error("Error general cargando datos del dashboard:", error);
+      if (countCitasHoy) countCitasHoy.textContent = "Error"; if (countVehiculos) countVehiculos.textContent = "Error"; if (countClientes) countClientes.textContent = "Error"; if (countServicios) countServicios.textContent = "Error";
+      if (proximasCitasList) proximasCitasList.innerHTML = '<p class="text-center text-red-500">Error de conexión al cargar datos.</p>';
       if (paginationContainer) paginationContainer.classList.add('hidden');
     }
-
-    // --- Fetch de otros contadores (sin cambios) ---
-    try { const vehiculosResponse = await fetch("/api/vehiculos/count"); const vehiculosData = await vehiculosResponse.json(); if (vehiculosResponse.ok && vehiculosData.success) { if (countVehiculos) countVehiculos.textContent = vehiculosData.total ?? "0"; } else { console.error("Error en respuesta de /api/vehiculos/count:", vehiculosData.message); if (countVehiculos) countVehiculos.textContent = "Error"; } } catch (e) { console.error("Error fetching vehicle count:", e); if (countVehiculos) countVehiculos.textContent = "Error"; }
-    try { const clientesResponse = await fetch("/api/clientes/count"); const clientesData = await clientesResponse.json(); if (clientesResponse.ok && clientesData.success) { if (countClientes) countClientes.textContent = clientesData.total ?? "0"; } else { console.error("Error en respuesta de /api/clientes/count:", clientesData.message); if (countClientes) countClientes.textContent = "Error"; } } catch (e) { console.error("Error fetching client count:", e); if (countClientes) countClientes.textContent = "Error"; }
-    try { const serviciosResponse = await fetch("/api/servicios?activos=true"); const serviciosData = await serviciosResponse.json(); if (serviciosResponse.ok && serviciosData.success && serviciosData.servicios) { if (countServicios) countServicios.textContent = serviciosData.servicios.length; } else { console.error("Error en respuesta de /api/servicios?activos=true:", serviciosData.message); if (countServicios) countServicios.textContent = "Error"; } } catch (e) { console.error("Error fetching active services count:", e); if (countServicios) countServicios.textContent = "Error"; }
-    // --- Fin Fetch otros contadores ---
-
-  } catch (error) {
-    console.error("Error general cargando datos del dashboard:", error);
-    if (countCitasHoy) countCitasHoy.textContent = "Error"; if (countVehiculos) countVehiculos.textContent = "Error"; if (countClientes) countClientes.textContent = "Error"; if (countServicios) countServicios.textContent = "Error";
-    if (proximasCitasList) proximasCitasList.innerHTML = '<p class="text-center text-red-500">Error de conexión al cargar datos.</p>';
-    if (paginationContainer) paginationContainer.classList.add('hidden');
   }
-}
 
   /**
    * Maneja la subida de un nuevo avatar para el usuario.
@@ -429,30 +431,23 @@ async function cargarDatosDashboard() {
         console.error("Elementos de lista o paginación no encontrados");
         return;
     }
-
-    // Calcular índices para la página actual
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     const citasPaginaActual = allProximasCitasPendientes.slice(startIndex, endIndex);
-
-    proximasCitasList.innerHTML = ""; // Limpiar lista
-
+    proximasCitasList.innerHTML = "";
     if (citasPaginaActual.length === 0 && currentPage === 1) {
-      // Mostrar mensaje si no hay citas en total
       proximasCitasList.innerHTML = '<p class="text-center text-gray-500 italic">No hay citas pendientes próximas.</p>';
-      paginationContainer.classList.add('hidden'); // Ocultar paginación si no hay citas
+      paginationContainer.classList.add('hidden');
     } else if (citasPaginaActual.length === 0 && currentPage > 1) {
-       // Mensaje si se intenta ir a una página vacía (no debería pasar con botones deshabilitados)
        proximasCitasList.innerHTML = '<p class="text-center text-gray-500 italic">No hay más citas para mostrar en esta página.</p>';
-       paginationContainer.classList.remove('hidden'); // Mantener paginación visible
+       paginationContainer.classList.remove('hidden');
     } else {
-      // Renderizar las citas de la página actual
       citasPaginaActual.forEach(cita => {
         const nombreCliente = `${cita.nombre_cliente || ""} ${cita.apellido_cliente || ""}`.trim();
         const vehiculoDesc = `${cita.marca_vehiculo || "Marca Desc."} ${cita.modelo_vehiculo || "Modelo Desc."} (${cita.placa_vehiculo || "S/P"})`;
         const div = document.createElement('div');
         div.className = "appointment-list-item flex justify-between items-center py-2 border-b border-gray-200 last:border-b-0";
-        // *** CORRECCIÓN DE FORMATO AQUÍ: Añadido el guion ***
+        // Asegurar el guion entre fecha y hora
         div.innerHTML = `
           <div>
             <p class="font-medium text-gray-800">${formatDateSimple(cita.fecha_cita)} - ${formatTimeSimple(cita.hora_cita)}</p>
@@ -462,10 +457,9 @@ async function cargarDatosDashboard() {
         `;
         proximasCitasList.appendChild(div);
       });
-      paginationContainer.classList.remove('hidden'); // Mostrar paginación si hay citas
+      paginationContainer.classList.remove('hidden');
     }
-
-    renderPaginationControls(); // Actualizar estado de botones y texto
+    renderPaginationControls();
   }
 
   /**
