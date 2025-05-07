@@ -205,55 +205,54 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function formatDateTime(dateTimeString) {
-    if (!dateTimeString || dateTimeString === "N/A") return "N/A";
+    if (!dateTimeString || dateTimeString === "N/A") {
+      return "N/A";
+    }
+
+    console.log("[formatDateTime] Original dateTimeString:", dateTimeString);
+
     try {
-      let date = new Date(dateTimeString);
+      let dateInput = String(dateTimeString);
 
-      if (isNaN(date.getTime())) {
-        const parts = dateTimeString.split(/[- :T.]/);
-        if (parts.length >= 6) {
-          date = new Date(
-            Date.UTC(
-              parts[0],
-              parts[1] - 1,
-              parts[2],
-              parts[3],
-              parts[4],
-              parts[5]
-            )
-          );
-        } else if (parts.length >= 3) {
-          date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+      // Verificar si la cadena ya tiene un designador de zona horaria (Z o +/-HH:MM)
+      const hasTimeZoneSpecifier = /Z|[+-]\d{2}:\d{2}$/.test(dateInput);
 
-          if (!isNaN(date.getTime())) {
-            return date.toLocaleDateString("es-PE", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-              timeZone: "UTC",
-            });
-          }
+      if (!hasTimeZoneSpecifier) {
+        // Si no tiene 'Z' ni offset, y parece un formato YYYY-MM-DD HH:MM:SS,
+        // asumimos que es UTC y le añadimos 'Z'.
+        // Esto es crucial si el backend envía UTC pero omite el designador.
+        if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(dateInput)) {
+          // Reemplazar espacio por T si existe, y añadir Z si no está.
+          dateInput = dateInput.replace(' ', 'T') + 'Z';
+          console.log("[formatDateTime] Assuming UTC, appended 'Z':", dateInput);
         }
       }
 
+      const date = new Date(dateInput);
+      console.log("[formatDateTime] Parsed Date object (toString):", date.toString()); // Muestra en la zona horaria del navegador
+      console.log("[formatDateTime] Parsed Date object (toISOString):", date.toISOString()); // Muestra en UTC
+
       if (isNaN(date.getTime())) {
-        console.error(
-          "formatDateTime: Invalid Date for input:",
-          dateTimeString
-        );
+        console.error("[formatDateTime] Invalid Date after parsing:", dateInput);
         return "Fecha inválida";
       }
 
-      return date.toLocaleString("es-PE", {
+      // Formatear a la zona horaria de Lima
+      const options = {
         day: "2-digit",
         month: "short",
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
         hour12: true,
-      });
+        timeZone: 'America/Lima' // Forzar la visualización en la zona horaria de Lima
+      };
+      const formattedDate = date.toLocaleString("es-PE", options);
+      console.log("[formatDateTime] Formatted Date (America/Lima):", formattedDate);
+      return formattedDate;
+
     } catch (e) {
-      console.error("Error formateando fecha/hora:", dateTimeString, e);
+      console.error("[formatDateTime] Error formateando fecha/hora:", dateTimeString, e);
       return "Fecha inválida";
     }
   }
@@ -565,7 +564,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
    // --- Función cargarYMostrarCitas (CON NUEVA CORRECCIÓN EN LÓGICA DE CLASIFICACIÓN) ---
-  async function cargarYMostrarCitas(fechaInicio = "", fechaFin = "") {
+   async function cargarYMostrarCitas(fechaInicio = "", fechaFin = "") {
     await cargarServicios(); // Asegurarse que los servicios están cargados
     if (!tablaCitasProximasBody || !tablaCitasPasadasBody) return;
 
