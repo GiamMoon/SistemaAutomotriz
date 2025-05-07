@@ -26,7 +26,7 @@ app.use(
                 "style-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com", "'unsafe-inline'"],
                 "font-src": ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.gstatic.com"],
                 "img-src": ["'self'", `http://localhost:${port}`, "https://*.onrender.com", "https://placehold.co", "data:"],
-                "connect-src": ["'self'", "https://*.onrender.com", `http://localhost:${port}`],
+                "connect-src": ["'self'", "https://*.onrender.com", `http://localhost:${port}`], // Asegúrate que tu app de render esté aquí si es diferente
             },
         },
     })
@@ -34,17 +34,19 @@ app.use(
 
 // --- MIDDLEWARE DE CORS ---
 const allowedOrigins = [
-    `http://localhost:${port}`,
-    'http://127.0.0.1:5500',
-    'https://automotriz-app.onrender.com' // <--- CORRECCIÓN: Añadida la URL de Render
+    `http://localhost:${port}`, // Para desarrollo local sirviendo el frontend desde el backend
+    'http://127.0.0.1:5500',    // Para desarrollo local con Live Server u similar
+    'https://automotriz-app.onrender.com' // Tu URL de producción en Render
 ];
+
 app.use(cors({
     origin: function (origin, callback) {
-        // Permite solicitudes sin 'origin' (como Postman o apps móviles) o si el origen está en la lista
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        // Permitir si el origen está en la lista, si es la cadena "null", o si no hay origen (ej. Postman)
+        // La condición `!origin` cubre `null` (valor) y `undefined`.
+        // Añadimos `origin === "null"` para cubrir el caso de la cadena "null".
+        if (!origin || origin === "null" || allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
-            // Para depuración, puedes loguear el origen no permitido:
             console.error(`Error de CORS: Origen no permitido: ${origin}`);
             callback(new Error('Origen no permitido por CORS'));
         }
@@ -148,6 +150,11 @@ app.get('/', (req, res) => {
 });
 
 // --- RUTAS API (Adaptadas para PostgreSQL) ---
+// COPIA AQUÍ TODAS TUS RUTAS API (CITAS, AUTH, SERVICIOS, VEHÍCULOS, CLIENTES, COUNTS)
+// TAL COMO LAS TENÍAS EN EL server.js ANTERIOR QUE FUNCIONABA CON POSTGRESQL.
+// NO HAY CAMBIOS EN LA LÓGICA DE ESAS RUTAS, SOLO EN LA CONFIGURACIÓN DE CORS.
+// Asegúrate de que todas las rutas desde app.post('/api/citas', ...)
+// hasta app.get('/api/clientes/count', ...) estén aquí.
 
 // --- RUTAS DE CITAS ---
 app.post('/api/citas', [
@@ -250,7 +257,7 @@ app.post('/api/citas', [
         return res.status(201).json({ success: true, message: 'Cita registrada exitosamente.', citaId: citaId });
 
     } catch (error) {
-        if (client) await client.query('ROLLBACK'); // Asegurarse de que client existe antes de rollback
+        if (client) await client.query('ROLLBACK'); 
         console.error('Error durante la transacción de base de datos (/api/citas):', error);
         if (error.code === '23505') {
             return res.status(409).json({ success: false, message: `Error: El valor para un campo único ya existe.` });
@@ -263,11 +270,6 @@ app.post('/api/citas', [
         if (client) client.release();
     }
 });
-
-// ... (El resto de tus rutas API, desde app.get('/api/citas') hasta el final, sin cambios) ...
-// COPIA AQUÍ EL RESTO DE TUS RUTAS API (GET /api/citas, LOGIN, REGISTER, SERVICIOS, VEHICULOS, CLIENTES, COUNTS)
-// TAL COMO LAS TENÍAS EN EL server.js ANTERIOR QUE FUNCIONABA CON POSTGRESQL.
-// NO HAY CAMBIOS EN LA LÓGICA DE ESAS RUTAS, SOLO EN LA CONFIGURACIÓN DE CORS.
 
 app.get('/api/citas', [
     query('fecha_inicio').optional().isISO8601().toDate().withMessage('Fecha de inicio inválida.'),
