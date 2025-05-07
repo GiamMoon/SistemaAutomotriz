@@ -205,55 +205,58 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function formatDateTime(dateTimeString) {
-    if (!dateTimeString || dateTimeString === "N/A") return "N/A";
+    if (!dateTimeString || dateTimeString === "N/A") {
+      return "N/A";
+    }
+
+    console.log("[formatDateTime] Original dateTimeString:", dateTimeString);
+
     try {
-      let date = new Date(dateTimeString);
+      let dateInput = String(dateTimeString);
+      const hasTimeZoneSpecifier = /Z|[+-]\d{2}:\d{2}$|\bUTC\b/i.test(dateInput);
 
-      if (isNaN(date.getTime())) {
-        const parts = dateTimeString.split(/[- :T.]/);
-        if (parts.length >= 6) {
-          date = new Date(
-            Date.UTC(
-              parts[0],
-              parts[1] - 1,
-              parts[2],
-              parts[3],
-              parts[4],
-              parts[5]
-            )
-          );
-        } else if (parts.length >= 3) {
-          date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-
-          if (!isNaN(date.getTime())) {
-            return date.toLocaleDateString("es-PE", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-              timeZone: "UTC",
-            });
+      if (!hasTimeZoneSpecifier) {
+        if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(dateInput)) {
+          dateInput = dateInput.replace(' ', 'T');
+          if (!dateInput.endsWith('Z')) {
+            dateInput += 'Z';
           }
+          console.log("[formatDateTime] Assuming UTC, modified to:", dateInput);
         }
       }
 
+      let date = new Date(dateInput);
+      console.log("[formatDateTime] Parsed Date object (before offset):", date.toISOString());
+
       if (isNaN(date.getTime())) {
-        console.error(
-          "formatDateTime: Invalid Date for input:",
-          dateTimeString
-        );
+        console.error("[formatDateTime] Invalid Date after parsing:", dateInput);
         return "Fecha inválida";
       }
 
-      return date.toLocaleString("es-PE", {
+      // --- INICIO DEL PARCHE: Ajuste manual de 5 horas ---
+      // Si la hora UTC recibida está consistentemente 5 horas adelantada
+      // respecto al momento real del evento en UTC, restamos 5 horas.
+      // ESTO ES UN PARCHE. La solución ideal es corregir el timestamp en el origen (backend/DB).
+      const OFFSET_HOURS = 5; // Horas a restar
+      date.setUTCHours(date.getUTCHours() - OFFSET_HOURS);
+      console.log(`[formatDateTime] Parsed Date object (after -${OFFSET_HOURS}h offset):`, date.toISOString());
+      // --- FIN DEL PARCHE ---
+
+      const options = {
         day: "2-digit",
         month: "short",
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
         hour12: true,
-      });
+        timeZone: 'America/Lima' // Forzar la visualización en la zona horaria de Lima
+      };
+      const formattedDate = date.toLocaleString("es-PE", options);
+      console.log("[formatDateTime] Formatted Date (America/Lima):", formattedDate);
+      return formattedDate;
+
     } catch (e) {
-      console.error("Error formateando fecha/hora:", dateTimeString, e);
+      console.error("[formatDateTime] Error formateando fecha/hora:", dateTimeString, e);
       return "Fecha inválida";
     }
   }
