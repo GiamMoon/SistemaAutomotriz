@@ -564,7 +564,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  async function cargarYMostrarCitas(fechaInicio = "", fechaFin = "") {
+   // --- Función cargarYMostrarCitas (CON NUEVA CORRECCIÓN EN LÓGICA DE CLASIFICACIÓN) ---
+   async function cargarYMostrarCitas(fechaInicio = "", fechaFin = "") {
     await cargarServicios(); // Asegurarse que los servicios están cargados
     if (!tablaCitasProximasBody || !tablaCitasPasadasBody) return;
 
@@ -576,6 +577,12 @@ document.addEventListener("DOMContentLoaded", () => {
     sortState["tabla-proximas"] = { key: null, direction: "none" };
     sortState["tabla-pasadas"] = { key: null, direction: "none" };
     updateSortIcons(tablaProximas); updateSortIcons(tablaPasadas);
+
+    // Obtener componentes de la fecha actual UNA VEZ para la comparación
+    const todayComp = new Date();
+    const todayYear = todayComp.getFullYear();
+    const todayMonth = todayComp.getMonth(); // 0-11
+    const todayDay = todayComp.getDate();
 
     let apiUrl = "/api/citas";
     const params = new URLSearchParams();
@@ -591,39 +598,46 @@ document.addEventListener("DOMContentLoaded", () => {
       if (response.ok && data.success && data.citas) {
         todasLasCitas = data.citas;
         todasLasCitas.forEach((cita) => {
-          let isTodayOrFuture = false; // Flag para la comparación
-          let fechaCitaValida = false; // Flag para saber si la fecha es válida
+          let isTodayOrFuture = false;
+          let fechaCitaValida = false;
 
           if (cita.fecha_cita) {
             try {
               const fechaISO = cita.fecha_cita.split("T")[0]; // YYYY-MM-DD
-              const citaYear = parseInt(fechaISO.substring(0, 4), 10);
-              const citaMonth = parseInt(fechaISO.substring(5, 7), 10) - 1; // JS months 0-11
-              const citaDay = parseInt(fechaISO.substring(8, 10), 10);
+              const fechaParts = fechaISO.split("-");
+              if (fechaParts.length === 3) {
+                const citaYear = parseInt(fechaParts[0], 10);
+                const citaMonth = parseInt(fechaParts[1], 10) - 1; // JS months 0-11
+                const citaDay = parseInt(fechaParts[2], 10);
 
-              // *** CORRECCIÓN: Comparar componentes de fecha directamente ***
-              // Crear números YYYYMMDD para comparación fácil
-              const citaDateNum = citaYear * 10000 + (citaMonth + 1) * 100 + citaDay;
-              const todayDateNum = todayYear * 10000 + (todayMonth + 1) * 100 + todayDay;
-
-              if (!isNaN(citaDateNum)) { // Verificar que los números son válidos
-                  isTodayOrFuture = citaDateNum >= todayDateNum;
-                  fechaCitaValida = true;
+                // *** CORRECCIÓN v3: Comparación directa de componentes ***
+                if (!isNaN(citaYear) && !isNaN(citaMonth) && !isNaN(citaDay)) {
+                    fechaCitaValida = true;
+                    if (citaYear > todayYear) {
+                        isTodayOrFuture = true;
+                    } else if (citaYear === todayYear) {
+                        if (citaMonth > todayMonth) {
+                            isTodayOrFuture = true;
+                        } else if (citaMonth === todayMonth) {
+                            if (citaDay >= todayDay) {
+                                isTodayOrFuture = true;
+                            }
+                        }
+                    }
+                    // Si ninguna condición se cumple, isTodayOrFuture permanece false (pasado)
+                }
               }
-
             } catch (e) {
               console.error("Error parsing cita.fecha_cita for comparison:", cita.fecha_cita, e);
-              fechaCitaValida = false; // Marcar como inválida si hay error
+              fechaCitaValida = false;
             }
           }
           const estadoCita = cita.estado || "Pendiente";
 
-          // Lógica de clasificación REVISADA
-          // Si está pendiente Y la fecha es válida Y es hoy o futura -> Próximas
+          // Lógica de clasificación REVISADA v3
           if (estadoCita === "Pendiente" && fechaCitaValida && isTodayOrFuture) {
             citasProximasData.push(cita);
           } else {
-            // Todas las demás (no pendientes, o pendientes pero pasadas, o con fecha inválida) -> Historial
             citasPasadasData.push(cita);
           }
         });
@@ -640,6 +654,7 @@ document.addEventListener("DOMContentLoaded", () => {
       tablaCitasProximasBody.innerHTML = errorMsg; tablaCitasPasadasBody.innerHTML = errorMsg;
     }
   }
+
   async function cancelarCita(citaId, nombreCliente) {
     if (
       !confirm(
