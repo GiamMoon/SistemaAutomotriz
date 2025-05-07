@@ -204,43 +204,47 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // --- Función formatDateTime (CON AJUSTE MANUAL DE ZONA HORARIA - PARCHE) ---
   function formatDateTime(dateTimeString) {
     if (!dateTimeString || dateTimeString === "N/A") {
       return "N/A";
     }
 
-    console.log("[formatDateTime] Original dateTimeString:", dateTimeString);
+    console.log("[formatDateTime] 1. Original dateTimeString:", dateTimeString, "(Tipo:", typeof dateTimeString, ")");
 
     try {
       let dateInput = String(dateTimeString);
-      const hasTimeZoneSpecifier = /Z|[+-]\d{2}:\d{2}$|\bUTC\b/i.test(dateInput);
 
-      if (!hasTimeZoneSpecifier) {
-        if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(dateInput)) {
-          dateInput = dateInput.replace(' ', 'T');
-          if (!dateInput.endsWith('Z')) {
-            dateInput += 'Z';
-          }
-          console.log("[formatDateTime] Assuming UTC, modified to:", dateInput);
-        }
+      // Paso 1: Normalizar la cadena de entrada para que sea más compatible con new Date()
+      // Reemplazar espacio entre fecha y hora con 'T' si existe
+      if (dateInput.includes(' ') && !dateInput.includes('T')) {
+        dateInput = dateInput.replace(' ', 'T');
+        console.log("[formatDateTime] 2. Replaced space with T:", dateInput);
+      }
+
+      // Paso 2: Asegurar que la cadena sea tratada como UTC si no tiene designador de zona horaria
+      // Regex para detectar si ya tiene 'Z' o un offset como +05:00 o -0300
+      const hasTimeZoneSpecifier = /Z|[+-]\d{2}(:?\d{2})?$/.test(dateInput);
+
+      if (!hasTimeZoneSpecifier && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(dateInput)) {
+        // Si parece un formato ISO local y no tiene 'Z', la añadimos para que new Date() la trate como UTC.
+        dateInput += 'Z';
+        console.log("[formatDateTime] 3. Assumed UTC, appended 'Z':", dateInput);
+      } else if (hasTimeZoneSpecifier) {
+        console.log("[formatDateTime] 3. Input string already has a time zone specifier:", dateInput);
+      } else {
+        console.warn("[formatDateTime] 3. Input string format is not a recognized ISO-like format or already has TZ. Proceeding as is:", dateInput);
       }
 
       let date = new Date(dateInput);
-      console.log("[formatDateTime] Parsed Date object (before offset):", date.toISOString());
+      console.log("[formatDateTime] 4. Parsed Date object (before offset - toISOString):", date.toISOString());
 
       if (isNaN(date.getTime())) {
-        console.error("[formatDateTime] Invalid Date after parsing:", dateInput);
+        console.error("[formatDateTime] 6. Invalid Date after parsing:", dateInput);
         return "Fecha inválida";
       }
 
-      // --- INICIO DEL PARCHE: Ajuste manual de 5 horas ---
-      // Si la hora UTC recibida está consistentemente 5 horas adelantada
-      // respecto al momento real del evento en UTC, restamos 5 horas.
-      // ESTO ES UN PARCHE. La solución ideal es corregir el timestamp en el origen (backend/DB).
-      const OFFSET_HOURS = 5; // Horas a restar
-      date.setUTCHours(date.getUTCHours() - OFFSET_HOURS);
-      console.log(`[formatDateTime] Parsed Date object (after -${OFFSET_HOURS}h offset):`, date.toISOString());
-      // --- FIN DEL PARCHE ---
+
 
       const options = {
         day: "2-digit",
@@ -248,18 +252,20 @@ document.addEventListener("DOMContentLoaded", () => {
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
+        // second: "2-digit", // Descomentar si también quieres mostrar segundos
         hour12: true,
         timeZone: 'America/Lima' // Forzar la visualización en la zona horaria de Lima
       };
       const formattedDate = date.toLocaleString("es-PE", options);
-      console.log("[formatDateTime] Formatted Date (America/Lima):", formattedDate);
+      console.log("[formatDateTime] 7. Formatted Date (America/Lima):", formattedDate);
       return formattedDate;
 
     } catch (e) {
-      console.error("[formatDateTime] Error formateando fecha/hora:", dateTimeString, e);
+      console.error("[formatDateTime] Error crítico formateando fecha/hora:", dateTimeString, e);
       return "Fecha inválida";
     }
   }
+
   function formatDate(dateString) {
     if (!dateString || dateString === "N/A") return "N/A";
     try {
