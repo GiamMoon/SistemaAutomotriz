@@ -565,23 +565,19 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function cargarYMostrarCitas(fechaInicio = "", fechaFin = "") {
-    await cargarServicios();
+    await cargarServicios(); // Asegurarse que los servicios están cargados
     if (!tablaCitasProximasBody || !tablaCitasPasadasBody) return;
 
-    const loadingHtml =
-      '<tr><td colspan="8" class="py-4 px-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i> Cargando citas...</td></tr>';
+    const loadingHtml = '<tr><td colspan="8" class="py-4 px-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i> Cargando citas...</td></tr>';
     tablaCitasProximasBody.innerHTML = loadingHtml;
     tablaCitasPasadasBody.innerHTML = loadingHtml;
 
-    todasLasCitas = [];
-    citasProximasData = [];
-    citasPasadasData = [];
+    todasLasCitas = []; citasProximasData = []; citasPasadasData = [];
     sortState["tabla-proximas"] = { key: null, direction: "none" };
     sortState["tabla-pasadas"] = { key: null, direction: "none" };
-    updateSortIcons(tablaProximas);
-    updateSortIcons(tablaPasadas);
+    updateSortIcons(tablaProximas); updateSortIcons(tablaPasadas);
 
-    let apiUrl = "/api/citas"; // MODIFIED
+    let apiUrl = "/api/citas";
     const params = new URLSearchParams();
     if (fechaInicio) params.append("fecha_inicio", fechaInicio);
     if (fechaFin) params.append("fecha_fin", fechaFin);
@@ -594,66 +590,56 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (response.ok && data.success && data.citas) {
         todasLasCitas = data.citas;
-
         todasLasCitas.forEach((cita) => {
-          let fechaCitaDate = null;
+          let isTodayOrFuture = false; // Flag para la comparación
+          let fechaCitaValida = false; // Flag para saber si la fecha es válida
+
           if (cita.fecha_cita) {
             try {
-              const fechaISO = cita.fecha_cita.split("T")[0];
-              const fechaParts = fechaISO.split("-");
-              if (fechaParts.length === 3) {
-                fechaCitaDate = new Date(
-                  Date.UTC(
-                    parseInt(fechaParts[0]),
-                    parseInt(fechaParts[1]) - 1,
-                    parseInt(fechaParts[2])
-                  )
-                );
-                if (isNaN(fechaCitaDate.getTime())) fechaCitaDate = null;
+              const fechaISO = cita.fecha_cita.split("T")[0]; // YYYY-MM-DD
+              const citaYear = parseInt(fechaISO.substring(0, 4), 10);
+              const citaMonth = parseInt(fechaISO.substring(5, 7), 10) - 1; // JS months 0-11
+              const citaDay = parseInt(fechaISO.substring(8, 10), 10);
+
+              // *** CORRECCIÓN: Comparar componentes de fecha directamente ***
+              // Crear números YYYYMMDD para comparación fácil
+              const citaDateNum = citaYear * 10000 + (citaMonth + 1) * 100 + citaDay;
+              const todayDateNum = todayYear * 10000 + (todayMonth + 1) * 100 + todayDay;
+
+              if (!isNaN(citaDateNum)) { // Verificar que los números son válidos
+                  isTodayOrFuture = citaDateNum >= todayDateNum;
+                  fechaCitaValida = true;
               }
-            } catch {
-              fechaCitaDate = null;
+
+            } catch (e) {
+              console.error("Error parsing cita.fecha_cita for comparison:", cita.fecha_cita, e);
+              fechaCitaValida = false; // Marcar como inválida si hay error
             }
           }
           const estadoCita = cita.estado || "Pendiente";
 
-          if (
-            estadoCita === "Pendiente" &&
-            fechaCitaDate instanceof Date &&
-            fechaCitaDate >= today
-          ) {
+          // Lógica de clasificación REVISADA
+          // Si está pendiente Y la fecha es válida Y es hoy o futura -> Próximas
+          if (estadoCita === "Pendiente" && fechaCitaValida && isTodayOrFuture) {
             citasProximasData.push(cita);
           } else {
+            // Todas las demás (no pendientes, o pendientes pero pasadas, o con fecha inválida) -> Historial
             citasPasadasData.push(cita);
           }
         });
-
-        renderizarTabla(
-          tablaCitasProximasBody,
-          citasProximasData,
-          "tabla-proximas"
-        );
-        renderizarTabla(
-          tablaCitasPasadasBody,
-          citasPasadasData,
-          "tabla-pasadas"
-        );
+        renderizarTabla(tablaCitasProximasBody, citasProximasData, "tabla-proximas");
+        renderizarTabla(tablaCitasPasadasBody, citasPasadasData, "tabla-pasadas");
       } else {
         console.error("Error fetching appointments:", data.message);
-        const errorMsg =
-          '<tr><td colspan="8" class="py-4 px-4 text-center text-red-500">Error al cargar citas.</td></tr>';
-        tablaCitasProximasBody.innerHTML = errorMsg;
-        tablaCitasPasadasBody.innerHTML = errorMsg;
+        const errorMsg = '<tr><td colspan="8" class="py-4 px-4 text-center text-red-500">Error al cargar citas.</td></tr>';
+        tablaCitasProximasBody.innerHTML = errorMsg; tablaCitasPasadasBody.innerHTML = errorMsg;
       }
     } catch (error) {
       console.error("Network error fetching appointments:", error);
-      const errorMsg =
-        '<tr><td colspan="8" class="py-4 px-4 text-center text-red-500">Error de red al cargar citas.</td></tr>';
-      tablaCitasProximasBody.innerHTML = errorMsg;
-      tablaCitasPasadasBody.innerHTML = errorMsg;
+      const errorMsg = '<tr><td colspan="8" class="py-4 px-4 text-center text-red-500">Error de red al cargar citas.</td></tr>';
+      tablaCitasProximasBody.innerHTML = errorMsg; tablaCitasPasadasBody.innerHTML = errorMsg;
     }
   }
-
   async function cancelarCita(citaId, nombreCliente) {
     if (
       !confirm(
