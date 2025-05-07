@@ -205,54 +205,78 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function formatDateTime(dateTimeString) {
-    if (!dateTimeString || dateTimeString === "N/A") {
-      return "N/A";
-    }
-
-    console.log("[formatDateTime] Original dateTimeString:", dateTimeString);
-
+    if (!dateTimeString || dateTimeString === "N/A") return "N/A";
     try {
-      let dateInput = String(dateTimeString);
+      let date = new Date(dateTimeString);
 
-      // Verificar si la cadena ya tiene un designador de zona horaria (Z o +/-HH:MM)
-      const hasTimeZoneSpecifier = /Z|[+-]\d{2}:\d{2}$/.test(dateInput);
+      if (isNaN(date.getTime())) {
+        const parts = dateTimeString.split(/[- :T.]/);
+        if (parts.length >= 6) {
+          date = new Date(
+            Date.UTC(
+              parts[0],
+              parts[1] - 1,
+              parts[2],
+              parts[3],
+              parts[4],
+              parts[5]
+            )
+          );
+        } else if (parts.length >= 3) {
+          date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
 
-      if (!hasTimeZoneSpecifier) {
-        // Si no tiene 'Z' ni offset, y parece un formato YYYY-MM-DD HH:MM:SS,
-        // asumimos que es UTC y le añadimos 'Z'.
-        // Esto es crucial si el backend envía UTC pero omite el designador.
-        if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(dateInput)) {
-          // Reemplazar espacio por T si existe, y añadir Z si no está.
-          dateInput = dateInput.replace(' ', 'T') + 'Z';
-          console.log("[formatDateTime] Assuming UTC, appended 'Z':", dateInput);
+          if (!isNaN(date.getTime())) {
+            return date.toLocaleDateString("es-PE", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              timeZone: "UTC",
+            });
+          }
         }
       }
 
-      const date = new Date(dateInput);
-      console.log("[formatDateTime] Parsed Date object (toString):", date.toString()); // Muestra en la zona horaria del navegador
-      console.log("[formatDateTime] Parsed Date object (toISOString):", date.toISOString()); // Muestra en UTC
-
       if (isNaN(date.getTime())) {
-        console.error("[formatDateTime] Invalid Date after parsing:", dateInput);
+        console.error(
+          "formatDateTime: Invalid Date for input:",
+          dateTimeString
+        );
         return "Fecha inválida";
       }
 
-      // Formatear a la zona horaria de Lima
-      const options = {
+      return date.toLocaleString("es-PE", {
         day: "2-digit",
         month: "short",
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
         hour12: true,
-        timeZone: 'America/Lima' // Forzar la visualización en la zona horaria de Lima
-      };
-      const formattedDate = date.toLocaleString("es-PE", options);
-      console.log("[formatDateTime] Formatted Date (America/Lima):", formattedDate);
-      return formattedDate;
-
+      });
     } catch (e) {
-      console.error("[formatDateTime] Error formateando fecha/hora:", dateTimeString, e);
+      console.error("Error formateando fecha/hora:", dateTimeString, e);
+      return "Fecha inválida";
+    }
+  }
+  function formatDate(dateString) {
+    if (!dateString || dateString === "N/A") return "N/A";
+    try {
+      const datePart = dateString.split("T")[0];
+      const parts = datePart.split("-");
+      if (parts.length !== 3) return "Formato inválido";
+
+      const date = new Date(
+        Date.UTC(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]))
+      );
+      if (isNaN(date.getTime())) return "Fecha inválida";
+
+      return date.toLocaleDateString("es-PE", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+      });
+    } catch (e) {
+      console.error("Error formateando fecha:", dateString, e);
       return "Fecha inválida";
     }
   }
@@ -420,79 +444,128 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("Select poblado. Valor actual:", editSelectServicio.value);
   }
 
-  // --- Función renderizarTabla (CON CONSOLE.LOGS PARA DEPURAR FECHAS) ---
   function renderizarTabla(tbodyElement, citasData, tablaId) {
     tbodyElement.innerHTML = "";
+
     if (!citasData || citasData.length === 0) {
-      const mensaje = tablaId === "tabla-proximas" ? "próximas" : "en el historial";
+      const mensaje =
+        tablaId === "tabla-proximas" ? "próximas" : "en el historial";
       tbodyElement.innerHTML = `<tr><td colspan="8" class="py-4 px-4 text-center text-gray-500">No hay citas ${mensaje} para mostrar.</td></tr>`;
       return;
     }
+
     citasData.forEach((cita) => {
       const tr = document.createElement("tr");
       tr.dataset.citaData = JSON.stringify(cita);
 
-      // Para depuración de fechas de creación/modificación
-      console.log(`Cita ID: ${cita.id_cita} - Raw fecha_creacion: ${cita.fecha_creacion} (Tipo: ${typeof cita.fecha_creacion})`);
-      console.log(`Cita ID: ${cita.id_cita} - Raw fecha_modificacion: ${cita.fecha_modificacion} (Tipo: ${typeof cita.fecha_modificacion})`);
-
+      let fechaCitaDate = null;
       let fechaFormateada = "Fecha inválida";
       let horaFormateada = "";
-      let fechaHoraValue = ""; // Usado para data-value de ordenamiento
-      let fechaCreacionValue = ""; // Para data-value de ordenamiento
-      let fechaModifValue = ""; // Para data-value de ordenamiento
+      let fechaHoraValue = "";
+      let fechaCreacionValue = "";
+      let fechaModifValue = "";
 
       if (cita.fecha_cita) {
         try {
           const fechaISO = cita.fecha_cita.split("T")[0];
-          const hora = cita.hora_cita ? cita.hora_cita.substring(0, 5) : "00:00";
-          fechaHoraValue = `${fechaISO}T${hora}:00Z`; // Asumir UTC para ordenamiento consistente
-          fechaFormateada = formatDate(fechaISO); // formatDate ya debería manejar UTC para display
-          horaFormateada = formatTime(cita.hora_cita); // formatTime ya debería manejar UTC para display
+          const hora = cita.hora_cita
+            ? cita.hora_cita.substring(0, 5)
+            : "00:00";
+
+          fechaHoraValue = `${fechaISO}T${hora}:00Z`;
+          const fechaParts = fechaISO.split("-");
+          if (fechaParts.length === 3) {
+            fechaCitaDate = new Date(
+              Date.UTC(
+                parseInt(fechaParts[0]),
+                parseInt(fechaParts[1]) - 1,
+                parseInt(fechaParts[2])
+              )
+            );
+            if (!isNaN(fechaCitaDate.getTime())) {
+              fechaFormateada = formatDate(fechaISO);
+              horaFormateada = formatTime(cita.hora_cita);
+            } else {
+              fechaCitaDate = null;
+              fechaHoraValue = "";
+            }
+          } else {
+            fechaCitaDate = null;
+            fechaHoraValue = "";
+          }
         } catch (e) {
+          fechaCitaDate = null;
           fechaHoraValue = "";
         }
       }
 
-      // Usar la función formatDateTime para mostrar las fechas de creación y modificación
+      if (cita.fecha_creacion) {
+        try {
+          fechaCreacionValue = new Date(cita.fecha_creacion).toISOString();
+        } catch {
+          fechaCreacionValue = "";
+        }
+      }
+      if (cita.fecha_modificacion) {
+        try {
+          fechaModifValue = new Date(cita.fecha_modificacion).toISOString();
+        } catch {
+          fechaModifValue = "";
+        }
+      }
+
+      const nombreClienteCompleto = `${cita.nombre_cliente || ""} ${
+        cita.apellido_cliente || ""
+      }`.trim();
+      const vehiculoInfo = `${cita.marca_vehiculo || ""} ${
+        cita.modelo_vehiculo || ""
+      } (${cita.ano_vehiculo || "S/A"})`;
+      const placaVehiculo = cita.placa_vehiculo || "S/P";
+      const vehiculoCompleto = `${vehiculoInfo} (${placaVehiculo})`;
+      const nombreServicioMostrado = getNombreServicio(
+        cita.servicio_id || cita.servicio_principal
+      );
+      const servicioParaOrdenar =
+        nombreServicioMostrado || cita.motivo_detalle || "";
+      const estadoCita = cita.estado || "Pendiente";
+      const esModificable = estadoCita === "Pendiente";
       const fechaCreacionFmt = formatDateTime(cita.fecha_creacion);
       const fechaModifFmt = formatDateTime(cita.fecha_modificacion);
 
-      // Para ordenamiento, es mejor usar el timestamp ISO original o un Unix timestamp
-      if (cita.fecha_creacion) { try { fechaCreacionValue = new Date(cita.fecha_creacion).toISOString(); } catch { fechaCreacionValue = ""; } }
-      if (cita.fecha_modificacion) { try { fechaModifValue = new Date(cita.fecha_modificacion).toISOString(); } catch { fechaModifValue = ""; } }
-
-
-      const nombreClienteCompleto = `${cita.nombre_cliente || ""} ${cita.apellido_cliente || ""}`.trim();
-      const vehiculoInfo = `${cita.marca_vehiculo || ""} ${cita.modelo_vehiculo || ""} (${cita.ano_vehiculo || "S/A"})`;
-      const placaVehiculo = cita.placa_vehiculo || "S/P";
-      const vehiculoCompleto = `${vehiculoInfo} (${placaVehiculo})`;
-      const nombreServicioMostrado = getNombreServicio(cita.servicio_id || cita.servicio_principal);
-      const servicioParaOrdenar = nombreServicioMostrado || cita.motivo_detalle || "";
-      const estadoCita = cita.estado || "Pendiente";
-      const esModificable = estadoCita === "Pendiente";
-      
-      let botonesAccion = `<button class="action-button btn-view text-blue-600 hover:text-blue-800" title="Ver Detalles" data-id="${cita.id_cita}"><i class="fas fa-eye"></i></button>`;
+      let botonesAccion = `<button class="action-button btn-view" title="Ver Detalles" data-id="${cita.id_cita}"><i class="fas fa-eye"></i></button>`;
       if (esModificable) {
-        botonesAccion += `<button class="action-button btn-edit text-yellow-600 hover:text-yellow-800" title="Editar Cita" data-id="${cita.id_cita}"><i class="fas fa-pencil-alt"></i></button>`;
-        botonesAccion += `<button class="action-button btn-complete text-green-600 hover:text-green-800" title="Marcar como Completada" data-id="${cita.id_cita}" data-cliente-nombre="${nombreClienteCompleto}"><i class="fas fa-check-circle"></i></button>`;
-        botonesAccion += `<button class="action-button btn-cancel text-red-600 hover:text-red-800" title="Cancelar Cita" data-id="${cita.id_cita}" data-cliente-nombre="${nombreClienteCompleto}"><i class="fas fa-times-circle"></i></button>`;
+        botonesAccion += `<button class="action-button btn-edit" title="Editar Cita" data-id="${cita.id_cita}"><i class="fas fa-pencil-alt"></i></button>`;
+        botonesAccion += `<button class="action-button btn-complete" title="Marcar como Completada" data-id="${cita.id_cita}" data-cliente-nombre="${nombreClienteCompleto}"><i class="fas fa-check-circle"></i></button>`;
+        botonesAccion += `<button class="action-button btn-cancel" title="Cancelar Cita" data-id="${cita.id_cita}" data-cliente-nombre="${nombreClienteCompleto}"><i class="fas fa-times-circle"></i></button>`;
       }
+
       tr.innerHTML = `
                 <td class="py-3 px-4" data-value="${fechaHoraValue}"><div>${fechaFormateada}</div><div class="text-xs text-gray-500">${horaFormateada}</div></td>
-                <td class="py-3 px-4" data-value="${nombreClienteCompleto || ""}">${nombreClienteCompleto || "N/A"}</td>
+                <td class="py-3 px-4" data-value="${
+                  nombreClienteCompleto || ""
+                }">${nombreClienteCompleto || "N/A"}</td>
                 <td class="py-3 px-4" data-value="${vehiculoCompleto}"><div>${vehiculoInfo}</div><div class="text-xs text-gray-500">(${placaVehiculo})</div></td>
-                <td class="py-3 px-4" data-value="${servicioParaOrdenar}">${nombreServicioMostrado || cita.motivo_detalle || "N/A"}</td>
-                <td class="py-3 px-4" data-value="${estadoCita}"><span class="status-badge status-${estadoCita.replace(/\s+/g, "-")}">${estadoCita}</span></td>
-                <td class="py-3 px-4 audit-info" data-value="${fechaCreacionValue}"><div>${cita.creado_por_username || "N/A"}</div><div class="text-xs text-gray-500">${fechaCreacionFmt}</div></td>
-                <td class="py-3 px-4 audit-info" data-value="${fechaModifValue}"><div>${cita.modificado_por_username || "---"}</div><div class="text-xs text-gray-500">${fechaModifFmt}</div></td>
-                <td class="py-3 px-4 text-right whitespace-nowrap space-x-2">${botonesAccion}</td>`;
+                <td class="py-3 px-4" data-value="${servicioParaOrdenar}">${
+        nombreServicioMostrado || cita.motivo_detalle || "N/A"
+      }</td>
+                <td class="py-3 px-4" data-value="${estadoCita}"><span class="status-badge status-${estadoCita.replace(
+        /\s+/g,
+        "-"
+      )}">${estadoCita}</span></td>
+                <td class="py-3 px-4 audit-info" data-value="${fechaCreacionValue}"><div>${
+        cita.creado_por_username || "N/A"
+      }</div><div>${fechaCreacionFmt}</div></td>
+                <td class="py-3 px-4 audit-info" data-value="${fechaModifValue}"><div>${
+        cita.modificado_por_username || "---"
+      }</div><div>${fechaModifFmt}</div></td>
+                <td class="py-3 px-4 text-right whitespace-nowrap">${botonesAccion}</td>`;
+
       tbodyElement.appendChild(tr);
     });
   }
 
    // --- Función cargarYMostrarCitas (CON NUEVA CORRECCIÓN EN LÓGICA DE CLASIFICACIÓN) ---
-   async function cargarYMostrarCitas(fechaInicio = "", fechaFin = "") {
+  async function cargarYMostrarCitas(fechaInicio = "", fechaFin = "") {
     await cargarServicios(); // Asegurarse que los servicios están cargados
     if (!tablaCitasProximasBody || !tablaCitasPasadasBody) return;
 
