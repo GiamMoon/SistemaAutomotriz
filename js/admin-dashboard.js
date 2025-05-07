@@ -420,6 +420,10 @@ async function cargarDatosDashboard() {
   /**
    * Renderiza la página actual de citas próximas pendientes.
    */
+// --- Funciones de Paginación (CORREGIDA para formato) ---
+  /**
+   * Renderiza la página actual de citas próximas pendientes.
+   */
   function renderProximasCitasPage() {
     if (!proximasCitasList || !paginationContainer) {
         console.error("Elementos de lista o paginación no encontrados");
@@ -445,15 +449,13 @@ async function cargarDatosDashboard() {
       // Renderizar las citas de la página actual
       citasPaginaActual.forEach(cita => {
         const nombreCliente = `${cita.nombre_cliente || ""} ${cita.apellido_cliente || ""}`.trim();
-        // Asegúrate que los nombres de campo coincidan con los de tu API (marca_vehiculo, modelo_vehiculo, etc.)
         const vehiculoDesc = `${cita.marca_vehiculo || "Marca Desc."} ${cita.modelo_vehiculo || "Modelo Desc."} (${cita.placa_vehiculo || "S/P"})`;
         const div = document.createElement('div');
         div.className = "appointment-list-item flex justify-between items-center py-2 border-b border-gray-200 last:border-b-0";
-        // *** CORRECCIÓN DE FORMATO AQUÍ ***
-        // Usar template literals correctamente para insertar las variables
+        // *** CORRECCIÓN DE FORMATO AQUÍ: Añadido el guion ***
         div.innerHTML = `
           <div>
-            <p class="font-medium text-gray-800">${formatDateSimple(cita.fecha_cita)} ${formatTimeSimple(cita.hora_cita)}</p>
+            <p class="font-medium text-gray-800">${formatDateSimple(cita.fecha_cita)} - ${formatTimeSimple(cita.hora_cita)}</p>
             <p class="text-xs text-gray-600">${nombreCliente} - ${vehiculoDesc}</p>
           </div>
           <a href="admin_miscitas.html#cita-${cita.id_cita}" class="text-xs text-blue-600 hover:underline">Ver</a>
