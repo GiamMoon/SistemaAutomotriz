@@ -204,57 +204,56 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // --- Función formatDateTime (Revisada para Zona Horaria) ---
   function formatDateTime(dateTimeString) {
-    if (!dateTimeString || dateTimeString === "N/A") return "N/A";
+    if (!dateTimeString || dateTimeString === "N/A") {
+        return "N/A";
+    }
     try {
-      let date = new Date(dateTimeString);
+        // Intenta crear un objeto Date. Si dateTimeString es un ISO string con 'Z' o un offset,
+        // se interpretará correctamente como UTC o el offset especificado.
+        // Si es una cadena sin información de zona horaria (ej: '2024-05-07 15:30:00'),
+        // new Date() la interpreta como HORA LOCAL DEL NAVEGADOR.
+        // Para que esto funcione correctamente, idealmente el backend debería enviar
+        // siempre timestamps en formato ISO 8601 UTC (ej: "2024-05-07T15:38:00.123Z").
 
-      if (isNaN(date.getTime())) {
-        const parts = dateTimeString.split(/[- :T.]/);
-        if (parts.length >= 6) {
-          date = new Date(
-            Date.UTC(
-              parts[0],
-              parts[1] - 1,
-              parts[2],
-              parts[3],
-              parts[4],
-              parts[5]
-            )
-          );
-        } else if (parts.length >= 3) {
-          date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+        let date = new Date(dateTimeString);
 
-          if (!isNaN(date.getTime())) {
-            return date.toLocaleDateString("es-PE", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-              timeZone: "UTC",
-            });
-          }
+        if (isNaN(date.getTime())) {
+            // Fallback si la cadena no es directamente parseable.
+            // Este fallback asume que los componentes son UTC si la cadena es ambigua.
+            const parts = String(dateTimeString).replace(' ', 'T').split(/[-T:.Z]/); // Manejar más delimitadores
+            if (parts.length >= 6) { // YYYY, MM, DD, HH, MM, SS
+                const year = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10) - 1; // JS month is 0-indexed
+                const day = parseInt(parts[2], 10);
+                const hours = parseInt(parts[3], 10);
+                const minutes = parseInt(parts[4], 10);
+                const seconds = parseInt(parts[5] || "0", 10); // Default seconds to 0 if not present
+                
+                // Creamos la fecha asumiendo que los componentes dados son UTC
+                date = new Date(Date.UTC(year, month, day, hours, minutes, seconds));
+            }
         }
-      }
 
-      if (isNaN(date.getTime())) {
-        console.error(
-          "formatDateTime: Invalid Date for input:",
-          dateTimeString
-        );
-        return "Fecha inválida";
-      }
+        if (isNaN(date.getTime())) {
+            console.error("formatDateTime: Invalid Date for input after all parsing attempts:", dateTimeString);
+            return "Fecha inválida";
+        }
 
-      return date.toLocaleString("es-PE", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
+        // Formatear a la zona horaria de Lima
+        return date.toLocaleString("es-PE", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+            timeZone: 'America/Lima' // Forzar la visualización en la zona horaria de Lima
+        });
     } catch (e) {
-      console.error("Error formateando fecha/hora:", dateTimeString, e);
-      return "Fecha inválida";
+        console.error("Error formateando fecha/hora:", dateTimeString, e);
+        return "Fecha inválida";
     }
   }
   function formatDate(dateString) {
