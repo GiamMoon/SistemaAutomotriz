@@ -4,7 +4,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (!isAuthenticatedOnLoad || !localCurrentUser) {
     console.error("Auth Error on DOMContentLoaded. Stopping script execution.");
-
     return;
   }
 
@@ -315,7 +314,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     console.log("Fetching services from API...");
     try {
-      const response = await fetch("http://localhost:3000/api/servicios");
+      const response = await fetch("/api/servicios"); // MODIFIED
       const data = await response.json();
       if (response.ok && data.success && data.servicios) {
         serviciosCache = data.servicios.reduce((acc, servicio) => {
@@ -395,7 +394,6 @@ document.addEventListener("DOMContentLoaded", () => {
         console.warn(
           `Servicio con ID '${servicioId}' no encontrado o inválido en caché.`
         );
-
         return `Servicio (ID: ${servicioId})`;
       }
     }
@@ -403,7 +401,6 @@ document.addEventListener("DOMContentLoaded", () => {
     console.warn(
       `Nombre de servicio no encontrado y no se pudo extraer ID de: ${servicioIdInput}. Devolviendo input original.`
     );
-
     return inputStr;
   }
 
@@ -416,17 +413,14 @@ document.addEventListener("DOMContentLoaded", () => {
     defaultOption.value = "";
     defaultOption.textContent = "-- Seleccionar --";
     defaultOption.disabled = true;
-
     defaultOption.selected = true;
     editSelectServicio.appendChild(defaultOption);
 
     console.log("Poblando select con servicios activos:", serviciosCache);
     for (const id in serviciosCache) {
       const servicio = serviciosCache[id];
-
       if (servicio && servicio.activo) {
         const option = document.createElement("option");
-
         option.value = String(servicio.id);
         option.textContent = servicio.nombre;
         editSelectServicio.appendChild(option);
@@ -462,7 +456,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     citasData.forEach((cita) => {
       const tr = document.createElement("tr");
-
       tr.dataset.citaData = JSON.stringify(cita);
 
       let fechaCitaDate = null;
@@ -588,7 +581,7 @@ document.addEventListener("DOMContentLoaded", () => {
     updateSortIcons(tablaProximas);
     updateSortIcons(tablaPasadas);
 
-    let apiUrl = "http://localhost:3000/api/citas";
+    let apiUrl = "/api/citas"; // MODIFIED
     const params = new URLSearchParams();
     if (fechaInicio) params.append("fecha_inicio", fechaInicio);
     if (fechaFin) params.append("fecha_fin", fechaFin);
@@ -672,7 +665,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const payload = { userId: localCurrentUser?.id };
       const response = await fetch(
-        `http://localhost:3000/api/citas/${citaId}/cancelar`,
+        `/api/citas/${citaId}/cancelar`, // MODIFIED
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -705,7 +698,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const payload = { userId: localCurrentUser?.id };
       const response = await fetch(
-        `http://localhost:3000/api/citas/${citaId}/completar`,
+        `/api/citas/${citaId}/completar`, // MODIFIED
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -821,7 +814,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!cita) {
         console.warn("Cita no encontrada en caché local, buscando en API...");
         const response = await fetch(
-          `http://localhost:3000/api/citas/${citaId}`
+          `/api/citas/${citaId}` // MODIFIED
         );
         const result = await response.json();
         if (response.ok && result.success && result.cita) {
@@ -903,7 +896,6 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("DEBUG: Modal de edición abierto y rellenado.");
     } catch (error) {
       console.error("DEBUG: Error al obtener detalles para editar:", error);
-
       showActionFeedback(
         error.message || "Error al cargar datos para editar.",
         "error"
@@ -931,7 +923,6 @@ document.addEventListener("DOMContentLoaded", () => {
             ? cita.hora_cita.substring(0, 5)
             : "00:00";
           const fechaHoraValue = fechaISO ? `${fechaISO}T${hora}:00Z` : "";
-
           return fechaHoraValue ? new Date(fechaHoraValue).getTime() : 0;
         case "cliente":
           return `${cita.nombre_cliente || ""} ${cita.apellido_cliente || ""}`
@@ -999,12 +990,10 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (valA < valB) {
         comparison = -1;
       }
-
       return newDirection === "desc" ? comparison * -1 : comparison;
     });
 
     renderizarTabla(tbody, dataToSort, tableId);
-
     updateSortIcons(tableElement);
   }
 
@@ -1042,7 +1031,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
-    const maxSize = 2 * 1024 * 1024;
+    const maxSize = 2 * 1024 * 1024; // 2MB
     if (!allowedTypes.includes(file.type)) {
       showActionFeedback(
         "Error: Tipo de archivo no permitido (solo JPG, PNG, GIF).",
@@ -1065,11 +1054,12 @@ document.addEventListener("DOMContentLoaded", () => {
     formData.append("avatar", file);
 
     try {
-      const apiUrl = `http://localhost:3000/api/users/${localCurrentUser.id}/avatar`;
+      const apiUrl = `/api/users/${localCurrentUser.id}/avatar`; // MODIFIED
       console.log(`DEBUG: Sending POST to ${apiUrl} for avatar upload.`);
       const response = await fetch(apiUrl, {
         method: "POST",
         body: formData,
+        // No 'Content-Type' header for FormData, browser sets it with boundary
       });
       const result = await response.json();
       console.log("DEBUG: Server response (avatar upload):", result);
@@ -1079,7 +1069,6 @@ document.addEventListener("DOMContentLoaded", () => {
           "DEBUG: Avatar uploaded successfully. New URL:",
           result.avatarUrl
         );
-
         if (userAvatarImg) {
           userAvatarImg.src = result.avatarUrl;
         }
@@ -1159,7 +1148,6 @@ document.addEventListener("DOMContentLoaded", () => {
     uploadAvatarTrigger.addEventListener("click", () =>
       avatarUploadInput.click()
     );
-
     avatarUploadInput.addEventListener("change", handleAvatarUpload);
   }
 
@@ -1189,7 +1177,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function handleTableActions(event) {
     console.log("DEBUG: Clic en tabla citas detectado.");
-
     const targetButton = event.target.closest("button.action-button");
 
     if (!targetButton) {
@@ -1204,7 +1191,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const nombreCliente = targetButton.dataset.clienteNombre || "este cliente";
-
     console.log(`DEBUG: Botón de acción clickeado para Cita ID: ${citaId}`);
 
     if (targetButton.classList.contains("btn-view")) {
@@ -1240,7 +1226,6 @@ document.addEventListener("DOMContentLoaded", () => {
       .forEach((field) => {
         if (!field.value.trim()) {
           field.classList.add("is-invalid", "border-red-500");
-
           const errorSpan = field
             .closest("div")
             .querySelector(".error-message");
@@ -1275,7 +1260,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const updatedData = {
       fecha_cita: editFechaCitaInput.value,
       hora_cita: editHoraCitaInput.value,
-
       kilometraje: editKilometrajeInput.value
         ? parseInt(editKilometrajeInput.value)
         : null,
@@ -1288,7 +1272,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const response = await fetch(
-        `http://localhost:3000/api/citas/${citaId}`,
+        `/api/citas/${citaId}`, // MODIFIED
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -1304,7 +1288,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (response.ok && result.success) {
         showEditFeedback("Cita actualizada exitosamente.", "success");
-
         setTimeout(() => {
           cerrarModalEdicion();
           cargarYMostrarCitas(filtroFechaInicio.value, filtroFechaFin.value);
