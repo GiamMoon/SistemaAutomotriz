@@ -275,7 +275,7 @@ async function cargarDatosDashboard() {
           // Crear fechas completas para una comparación precisa
           const dateA = new Date(`<span class="math-inline">\{a\.fecha\_cita\.split\('T'\)\[0\]\}T</span>{a.hora_cita || "00:00:00"}`);
           const dateB = new Date(`<span class="math-inline">\{b\.fecha\_cita\.split\('T'\)\[0\]\}T</span>{b.hora_cita || "00:00:00"}`);
-          return dateA - dateB; // Orden ascendente
+          return dateB - dateA; // Orden ascendente
         });
 
       console.log("DEBUG: Citas pendientes futuras ordenadas:", allProximasCitasPendientes);
