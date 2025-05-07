@@ -244,7 +244,14 @@ document.addEventListener("DOMContentLoaded", () => {
         return "Fecha inválida";
       }
 
-
+      // --- INICIO DEL PARCHE: Ajuste manual de 5 horas ---
+      // Si la hora UTC recibida está consistentemente 5 horas adelantada
+      // respecto al momento real del evento en UTC, restamos 5 horas.
+      // ESTO ES UN PARCHE. La solución ideal es corregir el timestamp en el origen (backend/DB).
+      const OFFSET_HOURS = 5; // Horas a restar
+      date.setUTCHours(date.getUTCHours() - OFFSET_HOURS);
+      console.log(`[formatDateTime] 5. Parsed Date object (after -${OFFSET_HOURS}h offset - toISOString):`, date.toISOString());
+      // --- FIN DEL PARCHE ---
 
       const options = {
         day: "2-digit",
@@ -265,7 +272,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return "Fecha inválida";
     }
   }
-
+  
   function formatDate(dateString) {
     if (!dateString || dateString === "N/A") return "N/A";
     try {
