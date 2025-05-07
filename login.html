@@ -53,7 +53,7 @@
         .btn-login:hover:not(:disabled) {
             background-color: #1e40af; /* Azul aún más oscuro */
         }
-         .btn-login:disabled {
+        .btn-login:disabled {
             opacity: 0.6;
             cursor: not-allowed;
         }
@@ -65,7 +65,6 @@
         .link-register:hover {
             text-decoration: underline;
         }
-        /* NUEVO: Estilos para mensajes de feedback */
         .feedback-message {
             font-size: 0.875rem;
             padding: 0.75rem 1rem;
@@ -80,29 +79,30 @@
         .feedback-error { background-color: #fee2e2; color: #991b1b; border-color: #fca5a5; }
         .feedback-loading { background-color: #e0f2fe; color: #075985; border-color: #7dd3fc; }
     </style>
-     <link rel="preconnect" href="https://fonts.googleapis.com">
-     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="flex items-center justify-center min-h-screen">
 
     <div class="login-container">
         <div class="flex justify-center">
-             <img src="https://placehold.co/200x60/003366/FFFFFF?text=Mecamach" alt="Logo A&S Palermo SAC" class="logo">
+            <img src="https://placehold.co/200x60/003366/FFFFFF?text=Mecamach" alt="Logo A&S Palermo SAC" class="logo">
         </div>
         <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Iniciar Sesión</h2>
 
         <div id="login-feedback" class="feedback-message"></div>
 
-        <form id="login-form" action="#" method="POST">
-            <div class="mb-4">
+        <form id="login-form"> <div class="mb-4">
                 <label for="username" class="block text-sm mb-1">Nombre de Usuario</label>
                 <input type="text" id="username" name="username" class="w-full" required placeholder="Ingrese su usuario">
-                <span id="error-username" class="text-red-600 text-xs mt-1 hidden">El nombre de usuario es requerido.</span> </div>
+                <span id="error-username" class="text-red-600 text-xs mt-1 hidden">El nombre de usuario es requerido.</span>
+            </div>
             <div class="mb-6">
                 <label for="password" class="block text-sm mb-1">Contraseña</label>
                 <input type="password" id="password" name="password" class="w-full" required placeholder="Ingrese su contraseña">
-                 <span id="error-password" class="text-red-600 text-xs mt-1 hidden">La contraseña es requerida.</span> </div>
+                <span id="error-password" class="text-red-600 text-xs mt-1 hidden">La contraseña es requerida.</span>
+            </div>
             <button type="submit" id="login-button" class="btn-login">
                 <i class="fas fa-sign-in-alt mr-2"></i> Ingresar
             </button>
@@ -118,20 +118,18 @@
             const storedUserData = localStorage.getItem('userData');
             if (storedUserData) {
                 const user = JSON.parse(storedUserData);
-                if (user && user.id && user.username) { // Verificar datos necesarios
+                if (user && user.id && user.username) { 
                     console.log("User already logged in. Redirecting to admin_miscitas.html...");
                     window.location.replace('admin_miscitas.html');
                 } else {
-                     // Si los datos son inválidos, limpiar y permanecer en login
-                     console.warn("Invalid user data found in storage. Clearing.");
-                     localStorage.removeItem('userData');
+                    console.warn("Invalid user data found in storage. Clearing.");
+                    localStorage.removeItem('userData');
                 }
             }
         } catch (e) {
             console.error("Error checking existing login:", e);
-            localStorage.removeItem('userData'); // Limpiar en caso de error de parseo
+            localStorage.removeItem('userData');
         }
-
 
         const loginForm = document.getElementById('login-form');
         const usernameInput = document.getElementById('username');
@@ -141,7 +139,6 @@
         const errorUsernameSpan = document.getElementById('error-username');
         const errorPasswordSpan = document.getElementById('error-password');
 
-        // Función para mostrar feedback
         function showFeedback(message, type = 'error') {
             let bgColor, iconClass;
             switch (type) {
@@ -150,54 +147,51 @@
                 case 'loading': bgColor = 'feedback-loading'; iconClass = 'fas fa-spinner fa-spin'; break;
                 default: bgColor = 'bg-gray-100 border border-gray-400 text-gray-700'; iconClass = 'fas fa-info-circle'; break;
             }
-            loginFeedbackDiv.className = `feedback-message ${bgColor}`; // Asignar clases
+            loginFeedbackDiv.className = `feedback-message ${bgColor}`;
             loginFeedbackDiv.innerHTML = `<i class="${iconClass} mr-2"></i> ${message}`;
-            loginFeedbackDiv.style.display = 'block'; // Mostrar el div
+            loginFeedbackDiv.style.display = 'block';
         }
 
-        // Función para ocultar feedback
         function hideFeedback() {
             loginFeedbackDiv.style.display = 'none';
             loginFeedbackDiv.innerHTML = '';
-             // Ocultar errores específicos de campos
             errorUsernameSpan.classList.add('hidden');
             errorPasswordSpan.classList.add('hidden');
-            usernameInput.classList.remove('border-red-500'); // Quitar borde rojo
+            usernameInput.classList.remove('border-red-500');
             passwordInput.classList.remove('border-red-500');
         }
 
         loginForm.addEventListener('submit', async (event) => {
-            event.preventDefault(); // Prevenir envío normal del formulario
-            hideFeedback(); // Ocultar mensajes previos
+            event.preventDefault(); 
+            hideFeedback(); 
             let isValid = true;
 
-            // Validación simple de campos vacíos
             if (!usernameInput.value.trim()) {
                 errorUsernameSpan.classList.remove('hidden');
-                usernameInput.classList.add('border-red-500'); // Añadir borde rojo
+                usernameInput.classList.add('border-red-500');
                 isValid = false;
             }
             if (!passwordInput.value.trim()) {
                 errorPasswordSpan.classList.remove('hidden');
-                passwordInput.classList.add('border-red-500'); // Añadir borde rojo
+                passwordInput.classList.add('border-red-500');
                 isValid = false;
             }
 
             if (!isValid) {
                 showFeedback('Por favor, complete todos los campos.', 'error');
-                return; // Detener si hay campos vacíos
+                return; 
             }
 
             const username = usernameInput.value;
             const password = passwordInput.value;
 
-            // Mostrar estado de carga y deshabilitar botón
             showFeedback('Iniciando sesión...', 'loading');
             loginButton.disabled = true;
             loginButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Ingresando...';
 
             try {
-                const response = await fetch('http://localhost:3000/api/login', {
+                // *** CORRECCIÓN AQUÍ: Usar URL relativa ***
+                const response = await fetch('/api/login', { // URL Relativa
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -208,49 +202,38 @@
                 const result = await response.json();
 
                 if (response.ok && result.success) {
-                    // Éxito en el login
                     showFeedback(result.message || 'Inicio de sesión exitoso. Redirigiendo...', 'success');
-                    // Guardar datos del usuario (incluyendo ID) en localStorage
                     localStorage.setItem('userData', JSON.stringify(result.user));
-                    // Redirigir después de un breve momento
                     setTimeout(() => {
-                        window.location.replace('admin_miscitas.html'); // Redirigir a la página principal del admin
-                    }, 1500); // Espera 1.5 segundos
+                        window.location.replace('admin_miscitas.html'); 
+                    }, 1500); 
 
                 } else {
-                    // Error en el login (credenciales incorrectas, usuario no existe, etc.)
-                    // El backend ya devuelve un mensaje específico en result.message
                     showFeedback(result.message || 'Error desconocido al iniciar sesión.', 'error');
-                    // Habilitar botón de nuevo y restaurar texto
                     loginButton.disabled = false;
                     loginButton.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i> Ingresar';
                 }
 
             } catch (error) {
-                // Error de red o del servidor
                 console.error('Error de red o servidor:', error);
                 showFeedback('Error de conexión con el servidor. Intente nuevamente.', 'error');
-                // Habilitar botón de nuevo y restaurar texto
                 loginButton.disabled = false;
                 loginButton.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i> Ingresar';
             }
         });
 
-         // Ocultar errores específicos al empezar a escribir
-         usernameInput.addEventListener('input', () => {
-             if (usernameInput.value.trim()) {
-                 errorUsernameSpan.classList.add('hidden');
-                 usernameInput.classList.remove('border-red-500');
-             }
-         });
-         passwordInput.addEventListener('input', () => {
-             if (passwordInput.value.trim()) {
-                 errorPasswordSpan.classList.add('hidden');
-                 passwordInput.classList.remove('border-red-500');
-             }
-         });
-
+        usernameInput.addEventListener('input', () => {
+            if (usernameInput.value.trim()) {
+                errorUsernameSpan.classList.add('hidden');
+                usernameInput.classList.remove('border-red-500');
+            }
+        });
+        passwordInput.addEventListener('input', () => {
+            if (passwordInput.value.trim()) {
+                errorPasswordSpan.classList.add('hidden');
+                passwordInput.classList.remove('border-red-500');
+            }
+        });
     </script>
-
 </body>
 </html>
