@@ -467,7 +467,7 @@ app.post('/api/citas', [ // Eliminado authenticateToken
     } catch (error) {
         if (client) await client.query('ROLLBACK');
         console.error('Error durante la transacción de base de datos (/api/citas POST):', error);
-        if (error.code === '23505') { return res.status(409).json({ success: false, message: `Error: El valor para un campo único ya existe (ej. placa).` }); }
+        if (error.code === '23505') { return res.status(409).json({ success: false, message: `Error: El valor para un campo único ya existe (ej. placa, correo electronico, etc).` }); }
         else if (error.code === '23503') { return res.status(400).json({ success: false, message: 'Error: El cliente o el vehículo seleccionado no es válido o no existe.' }); }
         else { return res.status(500).json({ success: false, message: 'Error interno al registrar la cita.' }); }
     } finally {
